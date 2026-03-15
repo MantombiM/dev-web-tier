@@ -1,0 +1,12 @@
+---
+# Health Service role - Application deployment tasks
+# To be implemented in Phase 3
+
+# Expected tasks:
+# - Create application directory structure
+# - Deploy health-service.py Python script
+# - Deploy fetch-secrets.sh bootstrap script
+# - Deploy systemd service unit file
+# - Install Python dependencies
+# - Enable and start service
+# - Verify service is running

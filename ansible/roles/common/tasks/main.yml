@@ -1,0 +1,10 @@
+---
+# Common role - Security baseline and package management
+# Tasks to be implemented in Phase 3
+
+# Expected tasks:
+# - Update system packages (yum update)
+# - Install common dependencies (python3, pip, aws-cli)
+# - Configure system security (firewall rules, SELinux)
+# - Set up logging and monitoring basics
+# - Create application user and directories

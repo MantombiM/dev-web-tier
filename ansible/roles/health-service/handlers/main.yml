@@ -1,0 +1,8 @@
+---
+# Health Service role - Handlers
+# To be implemented in Phase 3
+
+# Expected handlers:
+# - reload systemd
+# - restart health-service
+# - check health endpoint

@@ -1,0 +1,8 @@
+# Common Role Templates
+
+This directory is reserved for Jinja2 templates used by the common role.
+
+Templates will be added during implementation as needed for:
+- Configuration files
+- Shell scripts
+- Service definitions

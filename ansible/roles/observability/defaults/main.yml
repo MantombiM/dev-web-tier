@@ -1,0 +1,8 @@
+---
+# Observability role - Default variables
+# To be implemented in Phase 3
+
+# Expected variables:
+# cloudwatch_namespace: RewardsApp/Dev
+# log_group: /aws/rewards/dev
+# metrics_interval: 60

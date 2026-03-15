@@ -1,0 +1,10 @@
+---
+# Observability role - CloudWatch monitoring tasks
+# To be implemented in Phase 3
+
+# Expected tasks:
+# - Install CloudWatch agent
+# - Configure CloudWatch agent
+# - Deploy custom metrics scripts
+# - Configure log forwarding
+# - Set up alarms (via CloudWatch API or Terraform)

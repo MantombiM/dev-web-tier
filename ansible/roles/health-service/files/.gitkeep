@@ -1,0 +1,8 @@
+# Health Service Role Files
+
+This directory is reserved for static files to be copied to target hosts.
+
+Files will be added during implementation as needed for:
+- Configuration files
+- Scripts
+- Static assets

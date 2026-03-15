@@ -1,0 +1,121 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/**'
+      - 'ansible/**'
+      - '.github/workflows/terraform-apply.yml'
+
+# Prevent concurrent deployments
+concurrency:
+  group: rewards-dev-deployment
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform-apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    outputs:
+      alb_dns: ${{ steps.output.outputs.alb_dns }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rewards-github-actions-role
+          aws-region: us-east-1
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+          terraform_wrapper: false
+      
+      - name: Terraform Init
+        run: terraform init -backend-config="key=dev/terraform.tfstate"
+        working-directory: terraform
+      
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -var-file="environments/dev.tfvars"
+        working-directory: terraform
+      
+      - name: Store commit SHA in SSM
+        run: |
+          aws ssm put-parameter \
+            --name "/rewards/dev/app/commit_sha" \
+            --value "${{ github.sha }}" \
+            --type "String" \
+            --overwrite \
+            --region us-east-1
+      
+      - name: Get Terraform outputs
+        id: output
+        run: |
+          ALB_DNS=$(terraform output -raw alb_dns_name)
+          echo "alb_dns=${ALB_DNS}" >> $GITHUB_OUTPUT
+        working-directory: terraform
+
+  ansible-deploy:
+    name: Ansible Configuration
+    needs: terraform-apply
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rewards-github-actions-role
+          aws-region: us-east-1
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install Ansible and dependencies
+        run: |
+          pip install ansible boto3 botocore
+          ansible-galaxy collection install amazon.aws community.general
+        working-directory: ansible
+      
+      - name: Wait for SSM agent registration
+        run: sleep 60
+      
+      - name: Run Ansible playbook
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: ansible-playbook playbook.yml -i inventory/aws_ec2.yml -v
+        working-directory: ansible
+      
+      - name: Verify health endpoint
+        run: |
+          echo "Waiting for service to start..."
+          sleep 15
+          
+          ALB_DNS="${{ needs.terraform-apply.outputs.alb_dns }}"
+          echo "Testing health endpoint at: http://${ALB_DNS}/health"
+          
+          RESPONSE=$(curl -s -f http://${ALB_DNS}/health || echo "FAILED")
+          echo "Health response: ${RESPONSE}"
+          
+          if echo "${RESPONSE}" | jq -e '.status == "ok"' > /dev/null 2>&1; then
+            echo "✅ Health check passed"
+            echo "Service: $(echo ${RESPONSE} | jq -r '.service')"
+            echo "Commit: $(echo ${RESPONSE} | jq -r '.commit')"
+            echo "Region: $(echo ${RESPONSE} | jq -r '.region')"
+          else
+            echo "❌ Health check failed"
+            exit 1
+          fi

@@ -1,0 +1,8 @@
+---
+# Common role - Handlers
+# To be implemented in Phase 3
+
+# Expected handlers:
+# - restart sshd
+# - restart firewalld
+# - reload systemd

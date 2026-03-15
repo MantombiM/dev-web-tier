@@ -1,0 +1,27 @@
+[Unit]
+Description=Rewards Health Service
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/opt/rewards
+
+# Fetch secrets using instance role BEFORE starting app
+ExecStartPre=/opt/rewards/fetch-secrets.sh
+
+# Load environment file (created by fetch-secrets.sh)
+EnvironmentFile=/opt/rewards/.env
+
+# Start application
+ExecStart=/usr/bin/python3 /opt/rewards/health-service.py
+
+Restart=on-failure
+RestartSec=5s
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

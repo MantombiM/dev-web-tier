@@ -1,0 +1,97 @@
+name: Terraform PR Quality Gates
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'terraform/**'
+      - 'ansible/**'
+      - '.github/workflows/terraform-pr.yml'
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  terraform-validate:
+    name: Terraform Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rewards-github-actions-role
+          aws-region: us-east-1
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+      
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive
+        working-directory: terraform
+        continue-on-error: true
+      
+      - name: Terraform Init
+        id: init
+        run: terraform init -backend-config="key=dev/terraform.tfstate"
+        working-directory: terraform
+      
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate
+        working-directory: terraform
+      
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -var-file="environments/dev.tfvars" -no-color
+        working-directory: terraform
+        continue-on-error: true
+      
+      - name: Comment PR with results
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+            
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+  
+  ansible-lint:
+    name: Ansible Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install Ansible and dependencies
+        run: |
+          pip install ansible ansible-lint
+      
+      - name: Run ansible-lint
+        run: ansible-lint
+        working-directory: ansible
+        continue-on-error: true

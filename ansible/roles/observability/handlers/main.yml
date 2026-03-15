@@ -1,0 +1,7 @@
+---
+# Observability role - Handlers
+# To be implemented in Phase 3
+
+# Expected handlers:
+# - restart cloudwatch-agent
+# - reload cloudwatch-config
