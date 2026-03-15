@@ -1,0 +1,23 @@
+# AWS Configuration
+aws_region = "us-east-1"
+
+# Environment
+environment = "dev"
+
+# Network Configuration
+vpc_cidr = "10.0.0.0/16"
+
+# Compute Configuration
+instance_type    = "t4g.nano"
+min_size         = 1
+max_size         = 3
+desired_capacity = 1
+
+# Common Tags
+common_tags = {
+  environment = "dev"
+  service     = "rewards"
+  owner       = "candidate-name"
+  cost_center = "payments"
+  managed_by  = "terraform"
+}
