@@ -1,36 +1,66 @@
 #!/usr/bin/env python3
-# Health service application template
-# To be implemented in Phase 3
-
-# This script will:
-# - Run HTTP server on port 8080
-# - Serve /health endpoint with JSON response
-# - Include service, status, commit SHA, and region
-# - Load APP_SECRET from environment (for future API calls)
+"""
+Rewards Health Service
+Lightweight HTTP server for ALB health checks
+"""
 
 import json
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse
+
+# Configuration from environment
+PORT = {{ app_port }}
+SERVICE_NAME = "rewards"
+GIT_COMMIT = os.getenv('GIT_COMMIT', 'unknown')
+AWS_REGION = os.getenv('AWS_REGION', 'unknown')
+APP_SECRET = os.getenv('APP_SECRET')
 
 class HealthHandler(BaseHTTPRequestHandler):
+    """Handle HTTP health check requests"""
+    
     def do_GET(self):
-        if self.path == '/health':
-            response = {
-                "service": "rewards",
-                "status": "ok",
-                "commit": os.getenv("COMMIT_SHA", "unknown"),
-                "region": os.getenv("AWS_REGION", "unknown")
-            }
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps(response).encode())
+        """Process GET requests"""
+        parsed_path = urlparse(self.path)
+        
+        if parsed_path.path == '/health':
+            self.send_health_response()
         else:
-            self.send_response(404)
-            self.end_headers()
+            self.send_error(404, "Not Found")
+    
+    def send_health_response(self):
+        """Return health status JSON per SOLUTION.md spec"""
+        # Status depends on secret availability
+        status = "ok" if APP_SECRET else "degraded"
+        
+        health_data = {
+            "service": SERVICE_NAME,
+            "status": status,
+            "commit": GIT_COMMIT,
+            "region": AWS_REGION
+        }
+        
+        response = json.dumps(health_data, indent=2)
+        
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(response)))
+        self.end_headers()
+        self.wfile.write(response.encode('utf-8'))
+    
+    def log_message(self, format, *args):
+        """Log health check requests"""
+        print(f"[{self.log_date_time_string()}] {format % args}")
+
+def run_server(port=PORT):
+    """Start HTTP server on specified port"""
+    server_address = ('', port)
+    httpd = HTTPServer(server_address, HealthHandler)
+    print(f"Rewards health service starting on port {port}")
+    print(f"Git commit: {GIT_COMMIT}")
+    print(f"AWS region: {AWS_REGION}")
+    print(f"Secret loaded: {'Yes' if APP_SECRET else 'No (DEGRADED)'}")
+    httpd.serve_forever()
 
 if __name__ == '__main__':
-    # APP_SECRET available via os.getenv('APP_SECRET') for real API calls
-    server = HTTPServer(('0.0.0.0', 8080), HealthHandler)
-    print("Health service starting on port 8080...")
-    server.serve_forever()
+    run_server()

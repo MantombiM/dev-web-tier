@@ -1,8 +1,6 @@
 ---
-# Observability role - Default variables
-# To be implemented in Phase 3
-
-# Expected variables:
-# cloudwatch_namespace: RewardsApp/Dev
-# log_group: /aws/rewards/dev
-# metrics_interval: 60
+# Observability configuration
+log_dir: /var/log/rewards
+service_name: rewards-health
+app_user: ec2-user
+app_group: ec2-user

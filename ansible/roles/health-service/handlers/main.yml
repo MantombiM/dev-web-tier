@@ -1,8 +1,9 @@
 ---
-# Health Service role - Handlers
-# To be implemented in Phase 3
+- name: reload systemd
+  systemd:
+    daemon_reload: yes
 
-# Expected handlers:
-# - reload systemd
-# - restart health-service
-# - check health endpoint
+- name: restart rewards-health
+  systemd:
+    name: "{{ service_name }}"
+    state: restarted

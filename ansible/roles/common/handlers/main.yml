@@ -1,8 +1,10 @@
 ---
-# Common role - Handlers
-# To be implemented in Phase 3
+- name: restart sshd
+  systemd:
+    name: sshd
+    state: restarted
 
-# Expected handlers:
-# - restart sshd
-# - restart firewalld
-# - reload systemd
+- name: restart chrony
+  systemd:
+    name: chronyd
+    state: restarted

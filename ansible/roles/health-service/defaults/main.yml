@@ -1,9 +1,7 @@
 ---
-# Health Service role - Default variables
-# To be implemented in Phase 3
-
-# Expected variables:
-# service_name: health-service
-# service_port: 8080
-# app_dir: /opt/rewards
-# environment: dev
+# Health service configuration defaults
+app_dir: /opt/rewards
+app_port: 8080
+service_name: rewards-health
+app_user: ec2-user
+app_group: ec2-user

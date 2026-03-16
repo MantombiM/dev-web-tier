@@ -1,27 +1,39 @@
+# Systemd unit for Rewards Health Service
+# Auto-restart configuration per SOLUTION.md reliability requirements
+
 [Unit]
 Description=Rewards Health Service
+Documentation=https://github.com/nealstreet/rewards-tier
 After=network.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=ec2-user
-WorkingDirectory=/opt/rewards
+User={{ app_user }}
+Group={{ app_group }}
+WorkingDirectory={{ app_dir }}
 
-# Fetch secrets using instance role BEFORE starting app
-ExecStartPre=/opt/rewards/fetch-secrets.sh
+# Fetch secrets before starting (runs as root via sudo)
+ExecStartPre={{ app_dir }}/fetch-secrets.sh
 
-# Load environment file (created by fetch-secrets.sh)
-EnvironmentFile=/opt/rewards/.env
+# Load environment from file created by fetch-secrets script
+EnvironmentFile={{ app_dir }}/.env
 
-# Start application
-ExecStart=/usr/bin/python3 /opt/rewards/health-service.py
+# Start Python health service
+ExecStart=/usr/bin/python3 {{ app_dir }}/health-service.py
 
-Restart=on-failure
-RestartSec=5s
+# Restart policy - critical for production
+Restart=always
+RestartSec=10
 
 # Security hardening
 NoNewPrivileges=true
 PrivateTmp=true
+
+# Logging to journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier={{ service_name }}
 
 [Install]
 WantedBy=multi-user.target

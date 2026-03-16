@@ -1,15 +1,19 @@
 ---
-# Main Ansible playbook for rewards service deployment
-# To be implemented in Phase 3
-
-# This playbook will:
-# - Apply common role (security baseline, package updates)
-# - Deploy health-service role (Python app, systemd unit)
-# - Configure observability role (CloudWatch agent, metrics)
-
-# Example structure:
-# - hosts: tag_Service_rewards
-#   roles:
-#     - common
-#     - health-service
-#     - observability
+- name: Configure Rewards Web Tier
+  hosts: tag_Environment_dev:&tag_Service_rewards:&tag_AnsibleManaged_true
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    git_commit: "{{ lookup('env', 'GITHUB_SHA') | default('local-dev', true) }}"
+    aws_region: "{{ lookup('env', 'AWS_REGION') | default('us-east-1', true) }}"
+  
+  roles:
+    - role: common
+      tags: ['common', 'baseline']
+    
+    - role: health-service
+      tags: ['health-service', 'app']
+    
+    - role: observability
+      tags: ['observability', 'monitoring']

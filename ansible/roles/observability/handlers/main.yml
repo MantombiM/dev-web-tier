@@ -1,7 +1,6 @@
 ---
-# Observability role - Handlers
-# To be implemented in Phase 3
-
-# Expected handlers:
-# - restart cloudwatch-agent
-# - reload cloudwatch-config
+- name: restart rewards-health
+  systemd:
+    name: "{{ service_name }}"
+    state: restarted
+    daemon_reload: yes

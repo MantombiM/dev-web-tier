@@ -1,0 +1,16 @@
+# Logrotate configuration for Rewards application
+# Prevents logs from filling disk space
+
+/var/log/rewards/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 ec2-user ec2-user
+    sharedscripts
+    postrotate
+        systemctl reload rewards-health > /dev/null 2>&1 || true
+    endscript
+}
