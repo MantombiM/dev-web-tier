@@ -38,3 +38,13 @@ module "compute" {
   environment           = var.environment
   service_name          = var.service_name
 }
+
+module "cloudwatch" {
+  source = "./modules/cloudwatch"
+
+  environment              = var.environment
+  service_name             = var.service_name
+  alb_arn_suffix          = module.loadbalancer.alb_arn_suffix
+  target_group_arn_suffix = module.loadbalancer.target_group_arn_suffix
+  alarm_email             = var.alarm_email
+}

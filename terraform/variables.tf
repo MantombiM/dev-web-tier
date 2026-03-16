@@ -90,3 +90,13 @@ variable "common_tags" {
     managed_by  = "terraform"
   }
 }
+
+variable "alarm_email" {
+  description = "Email address for CloudWatch alarm notifications"
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", var.alarm_email))
+    error_message = "Alarm email must be a valid email address."
+  }
+}

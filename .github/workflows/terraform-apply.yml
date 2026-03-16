@@ -7,8 +7,8 @@ on:
       - 'terraform/**'
       - 'ansible/**'
       - '.github/workflows/terraform-apply.yml'
+  workflow_dispatch:
 
-# Prevent concurrent deployments
 concurrency:
   group: rewards-dev-deployment
   cancel-in-progress: false
@@ -21,6 +21,7 @@ jobs:
   terraform-apply:
     name: Terraform Apply
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
       alb_dns: ${{ steps.output.outputs.alb_dns }}
     
@@ -33,6 +34,7 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rewards-github-actions-role
           aws-region: us-east-1
+          role-session-name: GitHubActions-Deploy-${{ github.run_id }}
       
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -44,8 +46,17 @@ jobs:
         run: terraform init -backend-config="key=dev/terraform.tfstate"
         working-directory: terraform
       
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan \
+            -var-file="environments/dev.tfvars" \
+            -out=tfplan \
+            -input=false
+        working-directory: terraform
+      
       - name: Terraform Apply
-        run: terraform apply -auto-approve -var-file="environments/dev.tfvars"
+        run: terraform apply -auto-approve tfplan
         working-directory: terraform
       
       - name: Store commit SHA in SSM
@@ -57,17 +68,33 @@ jobs:
             --overwrite \
             --region us-east-1
       
+      - name: Ensure APP_SECRET exists in SSM
+        run: |
+          if ! aws ssm get-parameter --name "/rewards/dev/secrets/APP_SECRET" --region us-east-1 2>/dev/null; then
+            echo "Creating APP_SECRET parameter..."
+            aws ssm put-parameter \
+              --name "/rewards/dev/secrets/APP_SECRET" \
+              --value "dev-api-key-$(date +%s)" \
+              --type "SecureString" \
+              --description "API key for rewards service (dev environment)" \
+              --region us-east-1
+          else
+            echo "APP_SECRET already exists"
+          fi
+      
       - name: Get Terraform outputs
         id: output
         run: |
           ALB_DNS=$(terraform output -raw alb_dns_name)
           echo "alb_dns=${ALB_DNS}" >> $GITHUB_OUTPUT
+          echo "ALB DNS: ${ALB_DNS}"
         working-directory: terraform
 
   ansible-deploy:
     name: Ansible Configuration
     needs: terraform-apply
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     
     steps:
       - name: Checkout code
@@ -78,44 +105,81 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rewards-github-actions-role
           aws-region: us-east-1
+          role-session-name: GitHubActions-Ansible-${{ github.run_id }}
       
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
       
       - name: Install Ansible and dependencies
         run: |
+          pip install --upgrade pip
           pip install ansible boto3 botocore
           ansible-galaxy collection install amazon.aws community.general
         working-directory: ansible
       
-      - name: Wait for SSM agent registration
-        run: sleep 60
+      - name: Wait for EC2 instances to be ready
+        run: |
+          echo "Waiting for EC2 instances to register with SSM..."
+          sleep 60
+          
+          echo "Checking SSM agent status..."
+          aws ssm describe-instance-information \
+            --filters "Key=tag:environment,Values=dev" "Key=tag:service,Values=rewards" \
+            --region us-east-1 \
+            --query 'InstanceInformationList[*].[InstanceId,PingStatus]' \
+            --output table
       
-      - name: Run Ansible playbook
+      - name: Run Ansible playbook via SSM
         env:
           GITHUB_SHA: ${{ github.sha }}
-        run: ansible-playbook playbook.yml -i inventory/aws_ec2.yml -v
+        run: |
+          ansible-playbook playbook.yml \
+            -i inventory/aws_ec2.yml \
+            -v
         working-directory: ansible
+      
+      - name: Wait for application startup
+        run: sleep 15
       
       - name: Verify health endpoint
         run: |
-          echo "Waiting for service to start..."
-          sleep 15
-          
           ALB_DNS="${{ needs.terraform-apply.outputs.alb_dns }}"
           echo "Testing health endpoint at: http://${ALB_DNS}/health"
           
-          RESPONSE=$(curl -s -f http://${ALB_DNS}/health || echo "FAILED")
-          echo "Health response: ${RESPONSE}"
+          MAX_RETRIES=5
+          RETRY_COUNT=0
           
-          if echo "${RESPONSE}" | jq -e '.status == "ok"' > /dev/null 2>&1; then
-            echo "✅ Health check passed"
-            echo "Service: $(echo ${RESPONSE} | jq -r '.service')"
-            echo "Commit: $(echo ${RESPONSE} | jq -r '.commit')"
-            echo "Region: $(echo ${RESPONSE} | jq -r '.region')"
-          else
-            echo "❌ Health check failed"
-            exit 1
-          fi
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            RESPONSE=$(curl -s -f http://${ALB_DNS}/health 2>&1 || echo "FAILED")
+            
+            if echo "${RESPONSE}" | jq -e '.status == "ok"' > /dev/null 2>&1; then
+              echo "✅ Health check passed"
+              echo "Service: $(echo ${RESPONSE} | jq -r '.service')"
+              echo "Status: $(echo ${RESPONSE} | jq -r '.status')"
+              echo "Commit: $(echo ${RESPONSE} | jq -r '.commit')"
+              echo "Region: $(echo ${RESPONSE} | jq -r '.region')"
+              exit 0
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              echo "Attempt $RETRY_COUNT/$MAX_RETRIES failed, retrying in 10s..."
+              sleep 10
+            fi
+          done
+          
+          echo "❌ Health check failed after $MAX_RETRIES attempts"
+          exit 1
+      
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "================================================"
+          echo "✅ Deployment completed successfully"
+          echo "================================================"
+          echo "Environment: dev"
+          echo "ALB DNS: ${{ needs.terraform-apply.outputs.alb_dns }}"
+          echo "Health Endpoint: http://${{ needs.terraform-apply.outputs.alb_dns }}/health"
+          echo "Commit: ${{ github.sha }}"
+          echo "================================================"

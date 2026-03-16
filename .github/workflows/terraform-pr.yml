@@ -15,8 +15,9 @@ permissions:
 
 jobs:
   terraform-validate:
-    name: Terraform Validation
+    name: Terraform Validation & Planning
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     
     steps:
       - name: Checkout code
@@ -27,6 +28,7 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rewards-github-actions-role
           aws-region: us-east-1
+          role-session-name: GitHubActions-PR-${{ github.run_id }}
       
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -46,37 +48,72 @@ jobs:
       
       - name: Terraform Validate
         id: validate
-        run: terraform validate
+        run: terraform validate -no-color
         working-directory: terraform
       
-      - name: Terraform Plan
-        id: plan
-        run: terraform plan -var-file="environments/dev.tfvars" -no-color
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+      
+      - name: Initialize TFLint
+        id: tflint_init
+        run: tflint --init
         working-directory: terraform
         continue-on-error: true
       
-      - name: Comment PR with results
+      - name: Run TFLint
+        id: tflint
+        run: tflint --format compact --recursive
+        working-directory: terraform
+        continue-on-error: true
+      
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan \
+            -var-file="environments/dev.tfvars" \
+            -no-color \
+            -input=false
+        working-directory: terraform
+        continue-on-error: true
+      
+      - name: Comment PR with validation results
         uses: actions/github-script@v7
         if: github.event_name == 'pull_request'
         with:
           script: |
-            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
-            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+            const output = `## Terraform Quality Gates Results
             
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            | Gate | Status |
+            |------|--------|
+            | 🖌 Terraform Format | \`${{ steps.fmt.outcome }}\` |
+            | ⚙️ Terraform Init | \`${{ steps.init.outcome }}\` |
+            | 🤖 Terraform Validate | \`${{ steps.validate.outcome }}\` |
+            | 🔍 TFLint | \`${{ steps.tflint.outcome }}\` |
+            | 📖 Terraform Plan | \`${{ steps.plan.outcome }}\` |
+            
+            **Pushed by:** @${{ github.actor }}
+            **Run ID:** ${{ github.run_id }}
+            `;
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: output
-            })
+            });
+      
+      - name: Validate critical checks passed
+        if: steps.validate.outcome != 'success' || steps.init.outcome != 'success'
+        run: |
+          echo "❌ Critical validation checks failed"
+          exit 1
   
   ansible-lint:
     name: Ansible Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     
     steps:
       - name: Checkout code
@@ -86,12 +123,31 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
       
-      - name: Install Ansible and dependencies
+      - name: Install Ansible and ansible-lint
         run: |
+          pip install --upgrade pip
           pip install ansible ansible-lint
       
       - name: Run ansible-lint
-        run: ansible-lint
+        run: ansible-lint --force-color
         working-directory: ansible
-        continue-on-error: true
+
+  security-scan:
+    name: Security Scanning (tfsec)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: terraform
+          soft_fail: true
+          format: sarif
+          additional_args: --minimum-severity MEDIUM
