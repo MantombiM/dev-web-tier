@@ -11,6 +11,8 @@ keyed_groups:
     prefix: env
   - key: tags.service
     prefix: service
+  - key: tags.AnsibleManaged
+    prefix: tag_AnsibleManaged
 hostnames:
   - instance-id
 compose:
