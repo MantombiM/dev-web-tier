@@ -7,7 +7,7 @@
 
 ## Overview
 
-Production-ready AWS infrastructure for the "rewards" web service demonstrating senior-level engineering practices in infrastructure automation, security, and observability. This solution deploys a scalable, cost-optimized development environment using Terraform, Ansible, and GitHub Actions CI/CD.
+Production-ready AWS infrastructure for the "rewards" web service with comprehensive automation, security, and observability. This solution deploys a scalable, cost-optimized development environment using Terraform, Ansible, and GitHub Actions CI/CD.
 
 **Technologies**:
 - **Infrastructure**: Terraform 1.7.5
