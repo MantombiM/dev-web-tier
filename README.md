@@ -278,12 +278,18 @@ terraform init -backend-config="key=dev/terraform.tfstate"
 terraform apply -var-file=environments/dev.tfvars -auto-approve
 
 # 5. Create APP_SECRET (if not exists)
-aws ssm put-parameter \
-  --name "/rewards/dev/secrets/APP_SECRET" \
-  --value "dev-secret-$(date +%s)" \
-  --type "SecureString" \
-  --region ${AWS_REGION} \
-  || echo "Secret already exists"
+if ! aws ssm get-parameter --name "/rewards/dev/secrets/APP_SECRET" --region ${AWS_REGION} 2>/dev/null; then
+  echo "Creating APP_SECRET parameter..."
+  aws ssm put-parameter \
+    --name "/rewards/dev/secrets/APP_SECRET" \
+    --value "dev-secret-$(date +%s)" \
+    --type "SecureString" \
+    --description "API key for rewards service (dev environment)" \
+    --region ${AWS_REGION}
+  echo "Secret created successfully"
+else
+  echo "Secret already exists. Skipping creation."
+fi
 
 # 6. Configure instances with Ansible (wait for SSM registration)
 cd ../ansible
@@ -421,8 +427,8 @@ See [`docs/SOLUTION.md`](docs/SOLUTION.md) for complete IAM policy with least pr
       },
       "StringLike": {
         "token.actions.githubusercontent.com:sub": [
-          "repo:YOUR_ORG/rewards-web-tier:ref:refs/heads/main",
-          "repo:YOUR_ORG/rewards-web-tier:pull_request"
+          "repo:MantombiM/dev-web-tier:ref:refs/heads/main",
+          "repo:MantombiM/dev-web-tier:pull_request"
         ]
       }
     }

@@ -517,8 +517,8 @@ ansible_aws_ssm_region = us-east-1
       "StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com"},
       "StringLike": {
         "token.actions.githubusercontent.com:sub": [
-          "repo:nealstreet/rewards-web-tier:ref:refs/heads/main",
-          "repo:nealstreet/rewards-web-tier:pull_request"
+          "repo:MantombiM/dev-web-tier:ref:refs/heads/main",
+          "repo:MantombiM/dev-web-tier:pull_request"
         ]
       }
     }
