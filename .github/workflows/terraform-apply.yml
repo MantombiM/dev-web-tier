@@ -156,7 +156,7 @@ jobs:
             RESPONSE=$(curl -s -f http://${ALB_DNS}/health 2>&1 || echo "FAILED")
             
             if echo "${RESPONSE}" | jq -e '.status == "ok"' > /dev/null 2>&1; then
-              echo "✅ Health check passed"
+              echo "Health check passed"
               echo "Service: $(echo ${RESPONSE} | jq -r '.service')"
               echo "Status: $(echo ${RESPONSE} | jq -r '.status')"
               echo "Commit: $(echo ${RESPONSE} | jq -r '.commit')"
@@ -169,14 +169,14 @@ jobs:
             fi
           done
           
-          echo "❌ Health check failed after $MAX_RETRIES attempts"
+          echo "Health check failed after $MAX_RETRIES attempts"
           exit 1
       
       - name: Deployment summary
         if: success()
         run: |
           echo "================================================"
-          echo "✅ Deployment completed successfully"
+          echo "Deployment completed successfully"
           echo "================================================"
           echo "Environment: dev"
           echo "ALB DNS: ${{ needs.terraform-apply.outputs.alb_dns }}"

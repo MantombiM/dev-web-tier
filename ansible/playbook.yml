@@ -1,6 +1,6 @@
 ---
 - name: Configure Rewards Web Tier
-  hosts: tag_Environment_dev:&tag_Service_rewards:&tag_AnsibleManaged_true
+  hosts: tag_environment_dev:&tag_service_rewards:&tag_AnsibleManaged_true
   become: yes
   gather_facts: yes
   

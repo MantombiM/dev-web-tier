@@ -107,7 +107,7 @@ jobs:
       - name: Validate critical checks passed
         if: steps.validate.outcome != 'success' || steps.init.outcome != 'success'
         run: |
-          echo "❌ Critical validation checks failed"
+          echo "Critical validation checks failed"
           exit 1
   
   ansible-lint:

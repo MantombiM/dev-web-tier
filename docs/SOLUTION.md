@@ -1159,9 +1159,9 @@ jobs:
           echo "Health response: $RESPONSE"
           
           if echo "$RESPONSE" | jq -e '.status == "ok"' > /dev/null; then
-            echo "✅ Health check passed"
+            echo "Health check passed"
           else
-            echo "❌ Health check failed"
+            echo "Health check failed"
             exit 1
           fi
 ```
