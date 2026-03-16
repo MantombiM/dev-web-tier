@@ -1,7 +1,34 @@
-# Terraform outputs
-# To be populated during implementation
+output "alb_dns_name" {
+  description = "DNS name of the Application Load Balancer"
+  value       = module.loadbalancer.alb_dns_name
+}
 
-# Expected outputs:
-# - alb_dns_name - ALB DNS name for accessing the health endpoint
-# - vpc_id - VPC ID
-# - instance_ids - EC2 instance IDs
+output "health_endpoint" {
+  description = "Health check endpoint URL"
+  value       = "http://${module.loadbalancer.alb_dns_name}/health"
+}
+
+output "vpc_id" {
+  description = "ID of the VPC"
+  value       = module.network.vpc_id
+}
+
+output "asg_name" {
+  description = "Name of the Auto Scaling Group"
+  value       = module.compute.asg_name
+}
+
+output "private_subnet_id" {
+  description = "ID of the private subnet"
+  value       = module.network.private_subnet_id
+}
+
+output "public_subnet_ids" {
+  description = "IDs of the public subnets"
+  value       = module.network.public_subnet_ids
+}
+
+output "instance_role_arn" {
+  description = "ARN of the IAM role for EC2 instances"
+  value       = module.iam.instance_role_arn
+}

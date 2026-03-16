@@ -1,8 +1,40 @@
-# Main Terraform configuration - orchestrates all modules
-# This file will be populated with module calls during implementation
+module "network" {
+  source = "./modules/network"
 
-# Placeholder for module orchestration:
-# - module "network" - VPC, subnets, NAT gateway, security groups
-# - module "iam" - IAM roles and policies
-# - module "compute" - EC2 instances
-# - module "loadbalancer" - ALB and target groups
+  vpc_cidr           = var.vpc_cidr
+  environment        = var.environment
+  service_name       = var.service_name
+  availability_zones = var.availability_zones
+}
+
+module "iam" {
+  source = "./modules/iam"
+
+  environment  = var.environment
+  service_name = var.service_name
+}
+
+module "loadbalancer" {
+  source = "./modules/loadbalancer"
+
+  vpc_id                = module.network.vpc_id
+  public_subnet_ids     = module.network.public_subnet_ids
+  alb_security_group_id = module.network.alb_security_group_id
+  environment           = var.environment
+  service_name          = var.service_name
+}
+
+module "compute" {
+  source = "./modules/compute"
+
+  instance_type         = var.instance_type
+  min_size              = var.min_size
+  max_size              = var.max_size
+  desired_capacity      = var.desired_capacity
+  private_subnet_id     = module.network.private_subnet_id
+  app_security_group_id = module.network.app_security_group_id
+  instance_profile_name = module.iam.instance_profile_name
+  target_group_arns     = [module.loadbalancer.target_group_arn]
+  environment           = var.environment
+  service_name          = var.service_name
+}

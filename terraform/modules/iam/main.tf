@@ -1,10 +1,78 @@
-# IAM Module - Roles and Policies
-# To be implemented in Phase 3
+resource "aws_iam_role" "ec2_instance_role" {
+  name = "${var.environment}-${var.service_name}-ec2-role"
 
-# Resources to be created:
-# - aws_iam_role - EC2 instance role
-# - aws_iam_role_policy - EC2 instance policy (SSM, S3, CloudWatch)
-# - aws_iam_instance_profile - Instance profile for EC2
-# - aws_iam_role - GitHub Actions role (OIDC)
-# - aws_iam_role_policy - GitHub Actions policy
-# - aws_iam_openid_connect_provider - GitHub OIDC provider
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.environment}-${var.service_name}-ec2-role"
+    environment = var.environment
+    service     = var.service_name
+    managed_by  = "terraform"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_managed_instance_core" {
+  role       = aws_iam_role.ec2_instance_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_role_policy_attachment" "cloudwatch_agent_server_policy" {
+  role       = aws_iam_role.ec2_instance_role.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
+resource "aws_iam_role_policy" "ec2_custom_policy" {
+  name = "${var.environment}-${var.service_name}-ec2-custom-policy"
+  role = aws_iam_role.ec2_instance_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters"
+        ]
+        Resource = "arn:aws:ssm:*:*:parameter/rewards/*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject"
+        ]
+        Resource = "arn:aws:s3:::rewards-ansible-ssm-dev/*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateTags"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_instance_profile" "ec2_instance_profile" {
+  name = "${var.environment}-${var.service_name}-ec2-profile"
+  role = aws_iam_role.ec2_instance_role.name
+
+  tags = {
+    Name        = "${var.environment}-${var.service_name}-ec2-profile"
+    environment = var.environment
+    service     = var.service_name
+    managed_by  = "terraform"
+  }
+}

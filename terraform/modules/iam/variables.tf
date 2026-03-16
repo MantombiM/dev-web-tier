@@ -1,9 +1,9 @@
-# IAM Module Variables
-# To be implemented in Phase 3
+variable "environment" {
+  description = "Environment name"
+  type        = string
+}
 
-# Expected variables:
-# - environment (string) - Environment name
-# - github_org (string) - GitHub organization name
-# - github_repo (string) - GitHub repository name
-# - ansible_ssm_bucket_name (string) - S3 bucket for Ansible SSM
-# - tags (map) - Common tags
+variable "service_name" {
+  description = "Service name"
+  type        = string
+}

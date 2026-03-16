@@ -1,10 +1,24 @@
-# Load Balancer Module Variables
-# To be implemented in Phase 3
+variable "vpc_id" {
+  description = "ID of the VPC"
+  type        = string
+}
 
-# Expected variables:
-# - vpc_id (string) - VPC ID
-# - public_subnet_ids (list) - Public subnet IDs for ALB
-# - security_group_ids (list) - ALB security group IDs
-# - instance_ids (list) - EC2 instance IDs to register
-# - environment (string) - Environment name
-# - tags (map) - Common tags
+variable "public_subnet_ids" {
+  description = "List of public subnet IDs"
+  type        = list(string)
+}
+
+variable "alb_security_group_id" {
+  description = "ID of the ALB security group"
+  type        = string
+}
+
+variable "environment" {
+  description = "Environment name"
+  type        = string
+}
+
+variable "service_name" {
+  description = "Service name"
+  type        = string
+}

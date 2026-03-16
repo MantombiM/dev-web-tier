@@ -1,11 +1,49 @@
-# Compute Module Variables
-# To be implemented in Phase 3
+variable "instance_type" {
+  description = "EC2 instance type"
+  type        = string
+}
 
-# Expected variables:
-# - instance_type (string) - EC2 instance type
-# - instance_count (number) - Number of instances
-# - subnet_ids (list) - Private subnet IDs
-# - security_group_ids (list) - Security group IDs
-# - iam_instance_profile (string) - IAM instance profile name
-# - environment (string) - Environment name
-# - tags (map) - Common tags
+variable "min_size" {
+  description = "Minimum number of instances"
+  type        = number
+}
+
+variable "max_size" {
+  description = "Maximum number of instances"
+  type        = number
+}
+
+variable "desired_capacity" {
+  description = "Desired number of instances"
+  type        = number
+}
+
+variable "private_subnet_id" {
+  description = "ID of the private subnet"
+  type        = string
+}
+
+variable "app_security_group_id" {
+  description = "ID of the application security group"
+  type        = string
+}
+
+variable "instance_profile_name" {
+  description = "Name of the IAM instance profile"
+  type        = string
+}
+
+variable "target_group_arns" {
+  description = "List of target group ARNs"
+  type        = list(string)
+}
+
+variable "environment" {
+  description = "Environment name"
+  type        = string
+}
+
+variable "service_name" {
+  description = "Service name"
+  type        = string
+}

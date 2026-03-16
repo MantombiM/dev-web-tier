@@ -1,8 +1,19 @@
-# Network Module Variables
-# To be implemented in Phase 3
+variable "vpc_cidr" {
+  description = "CIDR block for VPC"
+  type        = string
+}
 
-# Expected variables:
-# - vpc_cidr (string) - CIDR block for VPC
-# - environment (string) - Environment name (dev/prod)
-# - availability_zones (list) - List of AZs to use
-# - tags (map) - Common tags to apply
+variable "environment" {
+  description = "Environment name"
+  type        = string
+}
+
+variable "service_name" {
+  description = "Service name"
+  type        = string
+}
+
+variable "availability_zones" {
+  description = "List of availability zones"
+  type        = list(string)
+}

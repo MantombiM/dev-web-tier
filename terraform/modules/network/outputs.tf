@@ -1,9 +1,29 @@
-# Network Module Outputs
-# To be implemented in Phase 3
+output "vpc_id" {
+  description = "ID of the VPC"
+  value       = aws_vpc.main.id
+}
 
-# Expected outputs:
-# - vpc_id - VPC ID
-# - public_subnet_ids - List of public subnet IDs
-# - private_subnet_ids - List of private subnet IDs
-# - alb_security_group_id - ALB security group ID
-# - app_security_group_id - Application security group ID
+output "public_subnet_ids" {
+  description = "IDs of the public subnets"
+  value       = aws_subnet.public[*].id
+}
+
+output "private_subnet_id" {
+  description = "ID of the private subnet"
+  value       = aws_subnet.private.id
+}
+
+output "alb_security_group_id" {
+  description = "ID of the ALB security group"
+  value       = aws_security_group.alb.id
+}
+
+output "app_security_group_id" {
+  description = "ID of the application security group"
+  value       = aws_security_group.app.id
+}
+
+output "nat_gateway_id" {
+  description = "ID of the NAT Gateway"
+  value       = aws_nat_gateway.main.id
+}

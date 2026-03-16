@@ -1,6 +1,19 @@
-# Compute Module Outputs
-# To be implemented in Phase 3
+output "asg_name" {
+  description = "Name of the Auto Scaling Group"
+  value       = aws_autoscaling_group.main.name
+}
 
-# Expected outputs:
-# - instance_ids - List of EC2 instance IDs
-# - instance_private_ips - List of private IP addresses
+output "asg_arn" {
+  description = "ARN of the Auto Scaling Group"
+  value       = aws_autoscaling_group.main.arn
+}
+
+output "launch_template_id" {
+  description = "ID of the launch template"
+  value       = aws_launch_template.main.id
+}
+
+output "launch_template_latest_version" {
+  description = "Latest version of the launch template"
+  value       = aws_launch_template.main.latest_version
+}
