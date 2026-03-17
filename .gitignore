@@ -4,6 +4,7 @@
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
+!terraform/environments/*.tfvars
 crash.log
 crash.*.log
 override.tf
