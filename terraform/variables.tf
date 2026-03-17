@@ -63,8 +63,8 @@ variable "max_size" {
   default     = 3
 
   validation {
-    condition     = var.max_size >= var.min_size
-    error_message = "Maximum size must be greater than or equal to minimum size."
+    condition     = var.max_size >= 1
+    error_message = "Maximum size must be at least 1."
   }
 }
 
@@ -74,8 +74,8 @@ variable "desired_capacity" {
   default     = 1
 
   validation {
-    condition     = var.desired_capacity >= var.min_size && var.desired_capacity <= var.max_size
-    error_message = "Desired capacity must be between min_size and max_size."
+    condition     = var.desired_capacity >= 1
+    error_message = "Desired capacity must be at least 1."
   }
 }
 
