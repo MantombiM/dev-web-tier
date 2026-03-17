@@ -112,11 +112,12 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
+          cache-dependency-path: 'ansible/requirements.txt'
       
       - name: Install Ansible and dependencies
         run: |
           pip install --upgrade pip
-          pip install ansible boto3 botocore
+          pip install -r requirements.txt
           ansible-galaxy collection install amazon.aws community.general
         working-directory: ansible
       
