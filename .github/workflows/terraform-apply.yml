@@ -145,6 +145,7 @@ jobs:
         run: |
           ansible-playbook playbook.yml \
             -i inventory/aws_ec2.yml \
+            -c amazon.aws.aws_ssm \
             -v
         working-directory: ansible
       
