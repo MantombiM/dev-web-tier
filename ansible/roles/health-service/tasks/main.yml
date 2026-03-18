@@ -1,7 +1,4 @@
 ---
-# Health service application deployment
-# Implements design from SOLUTION.md
-
 - name: Create application directory
   file:
     path: "{{ app_dir }}"
@@ -27,7 +24,6 @@
     owner: root
     group: "{{ app_group }}"
     mode: '0644'
-  notify: restart rewards-health
   tags: application
 
 - name: Deploy systemd service unit
@@ -37,10 +33,12 @@
     owner: root
     group: root
     mode: '0644'
-  notify:
-    - reload systemd
-    - restart rewards-health
+  notify: reload systemd
   tags: systemd
+
+- name: Flush handlers before service start
+  meta: flush_handlers
+  tags: service
 
 - name: Enable and start rewards health service
   systemd:
