@@ -6,7 +6,7 @@ availability_zones = ["us-east-1a", "us-east-1b"]
 instance_type      = "t4g.nano"
 min_size           = 1
 max_size           = 3
-desired_capacity   = 2
+desired_capacity   = 1
 alarm_email        = "mimimanqele13@gmail.com"
 
 common_tags = {

@@ -1,22 +1,48 @@
 ---
-- name: Configure Rewards Web Tier
+- name: Apply baseline configuration
   hosts: env_dev:&service_rewards
-  become: yes
-  gather_facts: yes
-  
+  become: true
+  gather_facts: true
+
   vars:
     git_commit: "{{ lookup('env', 'GITHUB_SHA') | default('local-dev', true) }}"
     aws_region: "{{ lookup('env', 'AWS_REGION') | default('us-east-1', true) }}"
     ansible_connection: amazon.aws.aws_ssm
     ansible_aws_ssm_bucket_name: "{{ lookup('env', 'ANSIBLE_SSM_BUCKET') }}"
     ansible_aws_ssm_region: us-east-1
-  
+
   roles:
     - role: common
       tags: ['common', 'baseline']
-    
+
+- name: Deploy health service
+  hosts: env_dev:&service_rewards
+  become: true
+  gather_facts: false
+
+  vars:
+    git_commit: "{{ lookup('env', 'GITHUB_SHA') | default('local-dev', true) }}"
+    aws_region: "{{ lookup('env', 'AWS_REGION') | default('us-east-1', true) }}"
+    ansible_connection: amazon.aws.aws_ssm
+    ansible_aws_ssm_bucket_name: "{{ lookup('env', 'ANSIBLE_SSM_BUCKET') }}"
+    ansible_aws_ssm_region: us-east-1
+
+  roles:
     - role: health-service
       tags: ['health-service', 'app']
-    
+
+- name: Configure observability
+  hosts: env_dev:&service_rewards
+  become: true
+  gather_facts: false
+
+  vars:
+    git_commit: "{{ lookup('env', 'GITHUB_SHA') | default('local-dev', true) }}"
+    aws_region: "{{ lookup('env', 'AWS_REGION') | default('us-east-1', true) }}"
+    ansible_connection: amazon.aws.aws_ssm
+    ansible_aws_ssm_bucket_name: "{{ lookup('env', 'ANSIBLE_SSM_BUCKET') }}"
+    ansible_aws_ssm_region: us-east-1
+
+  roles:
     - role: observability
       tags: ['observability', 'monitoring']
