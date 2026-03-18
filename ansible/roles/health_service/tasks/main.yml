@@ -56,6 +56,6 @@
   ansible.builtin.systemd_service:
     name: "{{ health_service_service_name }}"
     state: started
-  register: service_status
-  failed_when: service_status.status.ActiveState != 'active'
+  register: health_service_status
+  failed_when: health_service_status.status.ActiveState != 'active'
   tags: verify
