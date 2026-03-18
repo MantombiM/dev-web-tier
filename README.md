@@ -814,7 +814,7 @@ dev-web-tier/
 │   │
 │   └── roles/                  # Ansible roles
 │       ├── common/            # Base configuration (packages, security)
-│       └── health-service/    # Application deployment
+│       └── health_service/    # Application deployment
 │
 ├── .github/workflows/           # CI/CD Pipelines
 │   ├── terraform-pr.yml        # PR validation (plan, lint)

@@ -1,4 +1,5 @@
 data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
 
 resource "aws_iam_role" "ec2_instance_role" {
   name = "${var.environment}-${var.service_name}-ec2-role"
@@ -47,7 +48,7 @@ resource "aws_iam_role_policy" "ec2_custom_policy" {
           "ssm:GetParameter",
           "ssm:GetParameters"
         ]
-        Resource = "arn:aws:ssm:*:*:parameter/rewards/*"
+        Resource = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/rewards/*"
       },
       {
         Effect = "Allow"
@@ -70,7 +71,7 @@ resource "aws_iam_role_policy" "ec2_custom_policy" {
         Action = [
           "ec2:CreateTags"
         ]
-        Resource = "*"
+        Resource = "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*"
       }
     ]
   })

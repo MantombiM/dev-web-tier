@@ -47,3 +47,9 @@ variable "service_name" {
   description = "Service name"
   type        = string
 }
+
+variable "common_tags" {
+  description = "Common tags to apply to all resources"
+  type        = map(string)
+  default     = {}
+}

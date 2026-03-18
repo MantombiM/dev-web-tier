@@ -3,9 +3,9 @@ resource "aws_sns_topic" "cloudwatch_alarms" {
 
   tags = {
     Name        = "${var.service_name}-${var.environment}-cloudwatch-alarms"
-    Environment = var.environment
-    Service     = var.service_name
-    ManagedBy   = "terraform"
+    environment = var.environment
+    service     = var.service_name
+    managed_by  = "terraform"
   }
 }
 
@@ -35,10 +35,10 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx_errors" {
 
   tags = {
     Name        = "${var.service_name}-${var.environment}-alb-5xx-errors"
-    Environment = var.environment
-    Service     = var.service_name
-    ManagedBy   = "terraform"
-    AlarmType   = "availability"
+    environment = var.environment
+    service     = var.service_name
+    managed_by  = "terraform"
+    alarm_type  = "availability"
   }
 }
 
@@ -63,10 +63,10 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy_targets" {
 
   tags = {
     Name        = "${var.service_name}-${var.environment}-unhealthy-targets"
-    Environment = var.environment
-    Service     = var.service_name
-    ManagedBy   = "terraform"
-    AlarmType   = "health"
+    environment = var.environment
+    service     = var.service_name
+    managed_by  = "terraform"
+    alarm_type  = "health"
   }
 }
 
@@ -90,9 +90,9 @@ resource "aws_cloudwatch_metric_alarm" "high_cpu_utilization" {
 
   tags = {
     Name        = "${var.service_name}-${var.environment}-high-cpu"
-    Environment = var.environment
-    Service     = var.service_name
-    ManagedBy   = "terraform"
-    AlarmType   = "performance"
+    environment = var.environment
+    service     = var.service_name
+    managed_by  = "terraform"
+    alarm_type  = "performance"
   }
 }
