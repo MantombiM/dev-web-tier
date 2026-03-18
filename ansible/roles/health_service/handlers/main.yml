@@ -1,0 +1,10 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Restart rewards-health
+  ansible.builtin.systemd_service:
+    name: "{{ health_service_service_name }}"
+    state: restarted
+    daemon_reload: true

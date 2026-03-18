@@ -1,6 +1,3 @@
-# Systemd unit for Rewards Health Service
-# Auto-restart configuration per SOLUTION.md reliability requirements
-
 [Unit]
 Description=Rewards Health Service
 Documentation=https://github.com/nealstreet/rewards-tier
@@ -9,19 +6,19 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User={{ app_user }}
-Group={{ app_group }}
-WorkingDirectory={{ app_dir }}
+User={{ health_service_app_user }}
+Group={{ health_service_app_group }}
+WorkingDirectory={{ health_service_app_dir }}
 
 # Fetch secrets before starting (runs as root, + prefix overrides User=)
-ExecStartPre=+{{ app_dir }}/fetch-secrets.sh
+ExecStartPre=+{{ health_service_app_dir }}/fetch-secrets.sh
 
 # Load environment from file created by fetch-secrets script
 # - prefix makes it non-fatal if file doesn't exist on first start
-EnvironmentFile=-{{ app_dir }}/.env
+EnvironmentFile=-{{ health_service_app_dir }}/.env
 
 # Start Python health service
-ExecStart=/usr/bin/python3 {{ app_dir }}/health-service.py
+ExecStart=/usr/bin/python3 {{ health_service_app_dir }}/health-service.py
 
 # Restart policy - critical for production
 Restart=always
@@ -34,7 +31,7 @@ PrivateTmp=true
 # Logging to journald
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier={{ service_name }}
+SyslogIdentifier={{ health_service_service_name }}
 
 [Install]
 WantedBy=multi-user.target

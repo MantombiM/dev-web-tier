@@ -1,6 +1,6 @@
 ---
-- name: restart rewards-health
-  systemd:
-    name: "{{ service_name }}"
+- name: Restart rewards-health
+  ansible.builtin.systemd_service:
+    name: "{{ observability_service_name }}"
     state: restarted
-    daemon_reload: yes
+    daemon_reload: true

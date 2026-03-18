@@ -1,7 +1,0 @@
----
-# Health service configuration defaults
-app_dir: /opt/rewards
-app_port: 8080
-service_name: rewards-health
-app_user: ec2-user
-app_group: ec2-user

@@ -52,9 +52,18 @@ resource "aws_iam_role_policy" "ec2_custom_policy" {
       {
         Effect = "Allow"
         Action = [
-          "s3:GetObject"
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
         ]
         Resource = "arn:aws:s3:::rewards-ansible-ssm-${data.aws_caller_identity.current.account_id}-${var.environment}/*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetBucketLocation"
+        ]
+        Resource = "arn:aws:s3:::rewards-ansible-ssm-${data.aws_caller_identity.current.account_id}-${var.environment}"
       },
       {
         Effect = "Allow"

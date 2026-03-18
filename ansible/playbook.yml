@@ -28,7 +28,7 @@
     ansible_aws_ssm_region: us-east-1
 
   roles:
-    - role: health-service
+    - role: health_service
       tags: ['health-service', 'app']
 
 - name: Configure observability
