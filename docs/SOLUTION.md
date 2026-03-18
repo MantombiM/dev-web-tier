@@ -27,65 +27,63 @@ This solution architecture delivers a production-shaped development environment 
 |--------|-------|
 | Monthly Cost | $35-60 USD |
 | AWS Services | 13 core services (includes Ansible SSM bucket) |
-| Terraform Modules | 4 (network, compute, loadbalancer, iam) |
-| Ansible Roles | 3 (common, health-service, observability) |
+| Terraform Modules | 5 (network, compute, loadbalancer, iam, cloudwatch) |
+| Ansible Roles | 3 (common, health_service, observability) |
 | CI/CD Pipelines | 2 GitHub Actions workflows with quality gates |
 
 ---
 
 ## High-Level Architecture
 
+```mermaid
+flowchart TB
+    internet[Internet]
+
+    subgraph region[AWS Region - us-east-1]
+        subgraph vpc[VPC 10.0.0.0/16]
+            subgraph publicA[Public subnet us-east-1a\n10.0.1.0/24]
+                albA[ALB listener :80]
+                nat[NAT Gateway]
+            end
+
+            subgraph publicB[Public subnet us-east-1b\n10.0.2.0/24]
+                albB[ALB listener :80]
+            end
+
+            subgraph privateA[Private subnet us-east-1a\n10.0.11.0/24]
+                asg[Auto Scaling Group\nmin 1 / desired 1 / max 3]
+                ec2a[EC2 target\nhealth service :8080]
+                ec2b[Replacement / scale-out target]
+            end
+
+            subgraph managed[AWS managed services]
+                ssm[SSM Parameter Store\n/rewards/dev/secrets/APP_SECRET]
+                bucket[S3 Ansible transfer bucket\nrewards-ansible-ssm-ACCOUNT_ID-dev]
+                alarms[CloudWatch alarms]
+                sns[SNS email notifications]
+                session[Systems Manager\nSession Manager]
+            end
+        end
+    end
+
+    internet --> albA
+    internet --> albB
+    albA --> asg
+    albB --> asg
+    asg --> ec2a
+    asg --> ec2b
+    ec2a --> nat
+    ec2b --> nat
+    alarms --> sns
+    ec2a -. fetches secret at runtime .-> ssm
+    ec2b -. fetches secret at runtime .-> ssm
+    session -. agent access .-> ec2a
+    session -. agent access .-> ec2b
+    bucket -. ansible module transfer .-> ec2a
+    bucket -. ansible module transfer .-> ec2b
 ```
-┌───────────────────────────────────────────────────────────────────┐
-│                      AWS Region (us-east-1)                        │
-│                                                                     │
-│  ┌──────────────────────────────────────────────────────────────┐ │
-│  │ VPC: 10.0.0.0/16                                              │ │
-│  │                                                                │ │
-│  │  ┌─────────────────────┬─────────────────────┐               │ │
-│  │  │ AZ: us-east-1a      │ AZ: us-east-1b      │               │ │
-│  │  │                     │                      │               │ │
-│  │  │ ┌─────────────────┐ │ ┌─────────────────┐ │               │ │
-│  │  │ │ Public Subnet   │ │ │ Public Subnet   │ │               │ │
-│  │  │ │ 10.0.1.0/24     │ │ │ 10.0.11.0/24    │ │               │ │
-│  │  │ │                 │ │ │                 │ │               │ │
-│  │  │ │  ┌───────────┐  │ │ │  ┌───────────┐  │ │               │ │
-│  │  │ │  │ALB(Multi-│◄─┼─┼─┼─►│ALB(Multi-│  │ │               │ │
-│  │  │ │  │AZ)       │  │ │ │  │AZ)       │  │ │               │ │
-│  │  │ │  └─────┬─────┘  │ │ │  └───────────┘  │ │               │ │
-│  │  │ │        │        │ │ │                 │ │               │ │
-│  │  │ │  ┌─────┴─────┐  │ │ │                 │ │               │ │
-│  │  │ │  │NAT Gateway│  │ │ │  (No NAT)       │ │               │ │
-│  │  │ │  └───────────┘  │ │ │                 │ │               │ │
-│  │  │ └─────────────────┘ │ └─────────────────┘ │               │ │
-│  │  │        │ :8080      │                      │               │ │
-│  │  │  ┌─────▼─────────┐  │ ┌─────────────────┐ │               │ │
-│  │  │  │ Private Subnet│  │ │ Private (empty) │ │               │ │
-│  │  │  │ 10.0.2.0/24   │  │ │ 10.0.12.0/24    │ │               │ │
-│  │  │  │               │  │ │                 │ │               │ │
-│  │  │  │ ┌───────────┐ │  │ │                 │ │               │ │
-│  │  │  │ │EC2:       │ │  │ │                 │ │               │ │
-│  │  │  │ │rewards-1  │ │  │ │                 │ │               │ │
-│  │  │  │ │/health    │ │  │ │                 │ │               │ │
-│  │  │  │ │APP_SECRET │ │  │ │                 │ │               │ │
-│  │  │  │ └───────────┘ │  │ │                 │ │               │ │
-│  │  │  │ ┌───────────┐ │  │ │                 │ │               │ │
-│  │  │  │ │EC2:       │ │  │ │                 │ │               │ │
-│  │  │  │ │rewards-2  │ │  │ │                 │ │               │ │
-│  │  │  │ │/health    │ │  │ │                 │ │               │ │
-│  │  │  │ │APP_SECRET │ │  │ │                 │ │               │ │
-│  │  │  │ └───────────┘ │  │ │                 │ │               │ │
-│  │  │  └───────────────┘  │ └─────────────────┘ │               │ │
-│  │  └────────────────────────────────────────────┘               │ │
-│  └──────────────────────────────────────────────────────────────┘ │
-│                                                                     │
-│  AWS Managed Services:                                              │
-│  • SSM Parameter Store: /rewards/dev/* (secrets, config)           │
-│  • S3: rewards-ansible-ssm-dev (Ansible file transfers)            │
-│  • CloudWatch Alarms: UnhealthyHosts, 5xx, CPU                     │
-│  • Systems Manager: Session Manager (no SSH)                       │
-└───────────────────────────────────────────────────────────────────┘
-```
+
+The current development default is `desired_capacity = 1`; the diagram illustrates the scaled-out topology once the Auto Scaling Group adds more instances.
 
 ### Expected Health Response
 
@@ -117,9 +115,10 @@ curl http://<alb-dns>/health
 | Subnet | AZ | CIDR | IPs | Purpose |
 |--------|-------|-------------|-----|---------|
 | public-1a | us-east-1a | 10.0.1.0/24 | 251 | ALB, NAT |
-| public-1b | us-east-1b | 10.0.11.0/24 | 251 | ALB (AWS req) |
-| private-1a | us-east-1a | 10.0.2.0/24 | 251 | EC2 (active) |
-| private-1b | us-east-1b | 10.0.12.0/24 | 251 | Reserved |
+| public-1b | us-east-1b | 10.0.2.0/24 | 251 | ALB (AWS req) |
+| private-1a | us-east-1a | 10.0.11.0/24 | 251 | EC2 (active) |
+
+The current implementation provisions a single private subnet because the compute tier is intentionally single-AZ in development. A second private subnet can be added when promoting the compute tier to multi-AZ.
 
 **Key Decisions:**
 - **ALB Multi-AZ:** AWS requires ALB in ≥2 AZs - created public subnets in both zones
@@ -217,7 +216,7 @@ Current Terraform documentation (2026) indicates DynamoDB-based locking for S3 b
 
 **Decision for this assessment:**
 - Using S3 + DynamoDB because it matches rubric "excellent" criteria
-- Still fully supported in Terraform 1.5.x
+- Still supported in Terraform 1.7.5
 - Production-proven reliability
 
 **Future Migration Path:**
@@ -241,7 +240,7 @@ terraform {
 
 **Decision:** Dedicated S3 bucket for Ansible file transfers over SSM
 
-**Bucket: `rewards-ansible-ssm-dev`**
+**Bucket:** `rewards-ansible-ssm-${account_id}-${environment}`
 
 **Why This is Required:**
 
@@ -249,7 +248,7 @@ The `amazon.aws.aws_ssm` Ansible connection plugin requires an S3 bucket for fil
 
 **Bucket Configuration:**
 ```yaml
-Name: rewards-ansible-ssm-dev
+Name: rewards-ansible-ssm-{ACCOUNT_ID}-{ENVIRONMENT}
 Versioning: Enabled (security: preserve file history)
 Encryption: AES-256 (SSE-S3)
 Public Access: Blocked (all 4 settings)
@@ -268,7 +267,7 @@ Lifecycle Policy:
     "s3:GetObject",
     "s3:DeleteObject"
   ],
-  "Resource": "arn:aws:s3:::rewards-ansible-ssm-dev/*"
+  "Resource": "arn:aws:s3:::rewards-ansible-ssm-ACCOUNT_ID-dev/*"
 }
 ```
 
@@ -280,7 +279,7 @@ Lifecycle Policy:
   "Action": [
     "s3:GetObject"
   ],
-  "Resource": "arn:aws:s3:::rewards-ansible-ssm-dev/*"
+  "Resource": "arn:aws:s3:::rewards-ansible-ssm-ACCOUNT_ID-dev/*"
 }
 ```
 
@@ -294,12 +293,27 @@ Lifecycle Policy:
    - IAM policies restrict access
    - Never transfer unencrypted secrets (use SSM Parameter Store instead)
 
-**ansible.cfg Configuration:**
+**Local Ansible invocation:**
 ```ini
 [defaults]
-ansible_connection = amazon.aws.aws_ssm
-ansible_aws_ssm_bucket_name = rewards-ansible-ssm-dev  # REQUIRED
-ansible_aws_ssm_region = us-east-1
+inventory = ./inventory/aws_ec2.yml
+remote_user = ssm-user
+
+[inventory]
+enable_plugins = amazon.aws.aws_ec2
+```
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+ansible-galaxy collection install amazon.aws community.general
+export ANSIBLE_SSM_BUCKET="$(cd ../terraform && terraform output -raw ansible_ssm_bucket_name)"
+
+ansible-playbook playbook.yml \
+  -i inventory/aws_ec2.yml \
+  -c amazon.aws.aws_ssm \
+  -e "ansible_aws_ssm_bucket_name=${ANSIBLE_SSM_BUCKET}"
 ```
 
 **AWS Documentation:**
@@ -337,86 +351,38 @@ ansible_aws_ssm_region = us-east-1
    }
    ```
 
-3. **Ansible Deploys Bootstrap Script:** Deploy script that EC2 will execute using its own role
+3. **Ansible Deploys Secret Fetch Script:** The playbook templates `fetch-secrets.sh.j2` onto the instance so systemd can retrieve the secret with the EC2 instance role just before the service starts.
    ```yaml
    - name: Deploy secret fetch script
-     copy:
-       content: |
-         #!/bin/bash
-         # This script runs on EC2 using the instance role
-         set -euo pipefail
-         
-         # Fetch secret using instance role (AWS CLI uses instance metadata credentials)
-         APP_SECRET=$(aws ssm get-parameter \
-           --name "/rewards/dev/secrets/APP_SECRET" \
-           --with-decryption \
-           --query 'Parameter.Value' \
-           --output text \
-           --region us-east-1)
-         
-         # Write to environment file (only readable by app user)
-         cat > /opt/rewards/.env << EOF
-         APP_SECRET=${APP_SECRET}
-         COMMIT_SHA=$(cat /opt/rewards/commit_sha.txt 2>/dev/null || echo "unknown")
-         AWS_REGION=us-east-1
-         EOF
-         
-         chmod 600 /opt/rewards/.env
-         chown ec2-user:ec2-user /opt/rewards/.env
+     ansible.builtin.template:
+       src: fetch-secrets.sh.j2
        dest: /opt/rewards/fetch-secrets.sh
-       mode: '0750'
        owner: root
        group: ec2-user
+       mode: "0750"
    ```
 
-4. **Systemd Service Fetches Secret at Startup:** Service executes bootstrap script before app starts
+4. **Systemd Service Fetches Secret at Startup:** The final unit is `rewards-health.service` and executes the fetch script with `ExecStartPre` before launching the Python service.
    ```yaml
-   - name: Deploy systemd unit with secret fetch
-     copy:
-       content: |
-         [Unit]
-         Description=Rewards Health Service
-         After=network.target
-         
-         [Service]
-         Type=simple
-         User=ec2-user
-         WorkingDirectory=/opt/rewards
-         
-         # Fetch secrets using instance role BEFORE starting app
-         ExecStartPre=/opt/rewards/fetch-secrets.sh
-         
-         # Load environment file (created by fetch-secrets.sh)
-         EnvironmentFile=/opt/rewards/.env
-         
-         # Start application
-         ExecStart=/usr/bin/python3 /opt/rewards/health-service.py
-         
-         Restart=on-failure
-         RestartSec=5s
-         
-         # Security hardening
-         NoNewPrivileges=true
-         PrivateTmp=true
-         
-         [Install]
-         WantedBy=multi-user.target
-       dest: /etc/systemd/system/health-service.service
-       mode: '0644'
+   - name: Deploy systemd service unit
+     ansible.builtin.template:
+       src: rewards-health.service.j2
+       dest: /etc/systemd/system/rewards-health.service
+       owner: root
+       group: root
+       mode: "0644"
      notify:
-       - reload systemd
-       - restart health-service
+       - Reload systemd
+       - Restart rewards-health
    ```
 
-5. **Runtime:** Application reads from environment file (populated by instance at startup)
+5. **Runtime:** The application reads the environment that the fetch script wrote to `/opt/rewards/.env`.
    ```python
    import os
-   from dotenv import load_dotenv
-   
-   # Load environment file (created by fetch-secrets.sh using instance role)
-   load_dotenv('/opt/rewards/.env')
-   app_secret = os.getenv('APP_SECRET')  # Used for API calls
-   commit_sha = os.getenv('COMMIT_SHA')
+
+   app_secret = os.getenv("APP_SECRET")
+   git_commit = os.getenv("GIT_COMMIT")
+   aws_region = os.getenv("AWS_REGION")
    ```
 
 **Why This Approach:**
@@ -469,7 +435,7 @@ ansible_aws_ssm_region = us-east-1
       "Sid": "AnsibleSSMBucketRead",
       "Effect": "Allow",
       "Action": ["s3:GetObject"],
-      "Resource": "arn:aws:s3:::rewards-ansible-ssm-dev/*"
+      "Resource": "arn:aws:s3:::rewards-ansible-ssm-ACCOUNT_ID-dev/*"
     },
     {
       "Sid": "CloudWatchMetrics",
@@ -556,7 +522,7 @@ ansible_aws_ssm_region = us-east-1
       "Sid": "AnsibleSSMBucket",
       "Effect": "Allow",
       "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
-      "Resource": "arn:aws:s3:::rewards-ansible-ssm-dev/*"
+      "Resource": "arn:aws:s3:::rewards-ansible-ssm-ACCOUNT_ID-dev/*"
     },
     {
       "Sid": "EC2ReadOperations",
@@ -750,10 +716,10 @@ resource "aws_lb" "main" {
 **Ansible SSM Bucket:**
 ```hcl
 resource "aws_s3_bucket" "ansible_ssm" {
-  bucket = "rewards-ansible-ssm-dev"
+  bucket = "rewards-ansible-ssm-${data.aws_caller_identity.current.account_id}-${var.environment}"
 
   tags = merge(var.tags, {
-    Name    = "rewards-ansible-ssm-dev"
+    Name    = "rewards-ansible-ssm-${data.aws_caller_identity.current.account_id}-${var.environment}"
     Purpose = "Ansible file transfers over SSM"
   })
 }
@@ -791,189 +757,55 @@ resource "aws_s3_bucket_lifecycle_configuration" "ansible_ssm" {
 
 ```
 ansible/
-├── ansible.cfg             # SSM connection config
-├── requirements.yml
+├── ansible.cfg
+├── requirements.txt
 ├── playbook.yml
 ├── inventory/
-│   └── aws_ec2.yml         # Dynamic inventory
-│
+│   └── aws_ec2.yml
 └── roles/
-    ├── common/             # Security, packages
-    ├── health-service/     # App deployment
-    └── observability/      # CloudWatch agent
+    ├── common/
+    ├── health_service/
+    └── observability/
 ```
 
-### ansible.cfg (SSM Connection - No SSH)
+### Current connection model
 
-```ini
-[defaults]
-inventory = ./inventory/aws_ec2.yml
-remote_user = ec2-user
-roles_path = ./roles
-retry_files_enabled = False
+- Inventory uses `amazon.aws.aws_ec2` and filters by `environment=dev` and `service=rewards`
+- The playbook connects with `amazon.aws.aws_ssm`
+- The Ansible SSM bucket name is passed at runtime with `ansible_aws_ssm_bucket_name`
+- No SSH keys, bastion, or VPN are required
 
-# SSM Session Manager (no SSH keys, no VPN)
-ansible_connection = amazon.aws.aws_ssm
-ansible_aws_ssm_bucket_name = rewards-ansible-ssm-dev  # REQUIRED for file transfers
-ansible_aws_ssm_region = us-east-1
+### Current health service deployment flow
 
-[inventory]
-enable_plugins = amazon.aws.aws_ec2
+1. Terraform user data starts a minimal bootstrap responder on port `8080` so new ASG instances pass ALB health checks immediately.
+2. The `health_service` role deploys:
+   - `fetch-secrets.sh` to read `APP_SECRET` from SSM at service start
+   - `health-service.py` to serve the final `/health` response
+   - `rewards-health.service` as the systemd unit
+3. `ExecStartPre` fetches the secret using the instance role, writes `/opt/rewards/.env`, and then systemd launches the application.
+4. The service returns `service`, `status`, `commit`, and `region` as required by the assessment.
 
-[privilege_escalation]
-become = True
-become_method = sudo
+### Replaceability note
+
+ASG replacement instances are immediately ALB-healthy because of the bootstrap responder. Until the deploy pipeline reruns Ansible, those instances can temporarily return `commit: "bootstrap"` rather than the final Git SHA. This is an explicit trade-off of running Ansible from CI rather than on-instance.
+
+### Local execution requirements
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+ansible-galaxy collection install amazon.aws community.general
+export ANSIBLE_SSM_BUCKET="$(cd ../terraform && terraform output -raw ansible_ssm_bucket_name)"
+
+ansible-playbook playbook.yml \
+  -i inventory/aws_ec2.yml \
+  -c amazon.aws.aws_ssm \
+  -e "ansible_aws_ssm_bucket_name=${ANSIBLE_SSM_BUCKET}"
 ```
-
-**Benefits:**
-- No SSH keys
-- No VPN required
-- GitHub Actions can connect
-- CloudTrail logged
-- S3 bucket for file transfers
 
 **AWS Documentation:**
 - [Ansible aws_ssm plugin](https://docs.ansible.com/ansible/latest/collections/amazon/aws/aws_ssm_connection.html)
-
-### Health Service with Secret Consumption
-
-**`roles/health-service/tasks/main.yml` (Instance Role Fetches Secret):**
-```yaml
----
-- name: Create app directory
-  file:
-    path: /opt/rewards
-    state: directory
-    owner: ec2-user
-    mode: '0755'
-
-- name: Write commit SHA to file (for bootstrap script)
-  copy:
-    content: "{{ lookup('env', 'GITHUB_SHA') | default('unknown', true) }}"
-    dest: /opt/rewards/commit_sha.txt
-    owner: ec2-user
-    mode: '0644'
-
-- name: Deploy health service Python script
-  copy:
-    src: health-service.py
-    dest: /opt/rewards/health-service.py
-    owner: ec2-user
-    mode: '0755'
-  notify: restart health-service
-
-- name: Deploy secret fetch bootstrap script
-  copy:
-    content: |
-      #!/bin/bash
-      # This script runs on EC2 using the instance role
-      set -euo pipefail
-      
-      # Fetch secret using instance role (AWS CLI uses instance metadata credentials)
-      APP_SECRET=$(aws ssm get-parameter \
-        --name "/rewards/dev/secrets/APP_SECRET" \
-        --with-decryption \
-        --query 'Parameter.Value' \
-        --output text \
-        --region us-east-1)
-      
-      # Read commit SHA from file
-      COMMIT_SHA=$(cat /opt/rewards/commit_sha.txt 2>/dev/null || echo "unknown")
-      
-      # Write to environment file (only readable by app user)
-      cat > /opt/rewards/.env << EOF
-      APP_SECRET=${APP_SECRET}
-      COMMIT_SHA=${COMMIT_SHA}
-      AWS_REGION=us-east-1
-      EOF
-      
-      chmod 600 /opt/rewards/.env
-      chown ec2-user:ec2-user /opt/rewards/.env
-    dest: /opt/rewards/fetch-secrets.sh
-    mode: '0750'
-    owner: root
-    group: ec2-user
-
-- name: Deploy systemd unit with secret fetch
-  copy:
-    content: |
-      [Unit]
-      Description=Rewards Health Service
-      After=network.target
-      
-      [Service]
-      Type=simple
-      User=ec2-user
-      WorkingDirectory=/opt/rewards
-      
-      # Fetch secrets using instance role BEFORE starting app
-      ExecStartPre=/opt/rewards/fetch-secrets.sh
-      
-      # Load environment file (created by fetch-secrets.sh)
-      EnvironmentFile=/opt/rewards/.env
-      
-      # Start application
-      ExecStart=/usr/bin/python3 /opt/rewards/health-service.py
-      
-      Restart=on-failure
-      RestartSec=5s
-      
-      # Security hardening
-      NoNewPrivileges=true
-      PrivateTmp=true
-      
-      [Install]
-      WantedBy=multi-user.target
-    dest: /etc/systemd/system/health-service.service
-    mode: '0644'
-  notify:
-    - reload systemd
-    - restart health-service
-
-- name: Install AWS CLI (required for secret fetch)
-  package:
-    name: awscli
-    state: present
-
-- name: Enable and start health service
-  systemd:
-    name: health-service
-    enabled: yes
-    state: started
-```
-
-### Health Service Python Script
-
-```python
-#!/usr/bin/env python3
-import json, os
-from http.server import HTTPServer, BaseHTTPRequestHandler
-
-# Environment variables loaded by systemd EnvironmentFile directive
-# No external dependencies required
-
-class HealthHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path == '/health':
-            response = {
-                "service": "rewards",
-                "status": "ok",
-                "commit": os.getenv("COMMIT_SHA", "unknown"),
-                "region": os.getenv("AWS_REGION", "unknown")
-            }
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps(response).encode())
-        else:
-            self.send_response(404)
-            self.end_headers()
-
-if __name__ == '__main__':
-    # APP_SECRET available via os.getenv('APP_SECRET') for real API calls
-    server = HTTPServer(('0.0.0.0', 8080), HealthHandler)
-    server.serve_forever()
-```
 
 ---
 
@@ -983,196 +815,54 @@ if __name__ == '__main__':
 
 #### 1. Terraform Plan (PR) - Enhanced Quality Gates
 
-`.github/workflows/terraform-pr.yml`:
-```yaml
-name: Terraform Plan
+`terraform-pr.yml` runs on pull requests that touch Terraform, Ansible, or the workflow itself.
 
-on:
-  pull_request:
-    branches: [main]
+**Blocking checks:**
+- terraform fmt
+- terraform init
+- terraform validate
+- terraform plan
+- ansible-lint
 
-permissions:
-  id-token: write
-  contents: read
-  pull-requests: write
+**Advisory checks:**
+- tflint
+- tfsec
 
-jobs:
-  plan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Configure AWS via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rewards-github-actions-role
-          aws-region: us-east-1
-      
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.5.x
-      
-      - name: Install TFLint
-        run: |
-          curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
-      
-      - name: Terraform Format Check
-        run: terraform fmt -check -recursive
-        working-directory: terraform
-      
-      - name: Terraform Init
-        run: terraform init -backend-config="key=dev/terraform.tfstate"
-        working-directory: terraform
-      
-      - name: Terraform Validate
-        run: terraform validate
-        working-directory: terraform
-      
-      - name: TFLint
-        run: tflint --init && tflint
-        working-directory: terraform
-      
-      - name: Terraform Plan
-        run: terraform plan -var-file="environments/dev.tfvars"
-        working-directory: terraform
-      
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install Ansible Lint
-        run: pip install ansible-lint
-      
-      - name: Ansible Lint
-        run: ansible-lint
-        working-directory: ansible
-```
-
-**Quality Gates:**
-- terraform fmt (formatting)
-- terraform validate (syntax)
-- tflint (linting best practices)
-- terraform plan (drift detection)
-- ansible-lint (playbook quality)
+**Reviewer experience:**
+- PRs receive a comment with the terraform plan output and gate summary
+- Path filters avoid unnecessary workflow runs
+- Blocking checks fail the workflow immediately if unsuccessful
 
 ---
 
-#### 2. Terraform Apply + Ansible Deploy (Main) - Concurrency Control
+#### 2. Terraform Apply + Ansible Deploy (Main)
 
-`.github/workflows/terraform-apply.yml`:
+The deployment workflow runs on pushes to `main` and on manual dispatch.
+
+**Terraform job**
+- Configures AWS credentials via OIDC
+- Runs `terraform init`, `terraform plan -out=tfplan`, and `terraform apply tfplan`
+- Stores `${{ github.sha }}` in `/rewards/dev/app/commit_sha`
+- Ensures `/rewards/dev/secrets/APP_SECRET` exists
+- Exposes `alb_dns_name` and `ansible_ssm_bucket_name` as outputs for downstream jobs
+
+**Ansible job**
+- Installs dependencies from `ansible/requirements.txt`
+- Installs `amazon.aws` and `community.general`
+- Waits for SSM registration and verifies instance connectivity
+- Runs the playbook over `amazon.aws.aws_ssm`
+- Passes `ansible_aws_ssm_bucket_name` explicitly at runtime
+- Verifies `/health` with retries and JSON validation
+
+**Concurrency control**
+
 ```yaml
-name: Deploy
-
-on:
-  push:
-    branches: [main]
-
-# CRITICAL: Prevent overlapping deployments per environment
 concurrency:
-  group: rewards-dev
-  cancel-in-progress: false  # Wait for existing deployment to complete
-
-permissions:
-  id-token: write
-  contents: read
-
-jobs:
-  terraform:
-    runs-on: ubuntu-latest
-    outputs:
-      alb_dns: ${{ steps.output.outputs.alb_dns }}
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Configure AWS via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rewards-github-actions-role
-          aws-region: us-east-1
-      
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.5.x
-      
-      - name: Terraform Init
-        run: terraform init -backend-config="key=dev/terraform.tfstate"
-        working-directory: terraform
-      
-      - name: Terraform Apply
-        run: terraform apply -auto-approve -var-file="environments/dev.tfvars"
-        working-directory: terraform
-      
-      - name: Store commit SHA in SSM
-        run: |
-          aws ssm put-parameter \
-            --name "/rewards/dev/app/commit_sha" \
-            --value "${{ github.sha }}" \
-            --type "String" \
-            --overwrite
-      
-      - name: Create APP_SECRET if not exists
-        run: |
-          aws ssm put-parameter \
-            --name "/rewards/dev/secrets/APP_SECRET" \
-            --value "dev-api-key-${{ github.sha }}" \
-            --type "SecureString" \
-            --overwrite \
-            || true
-      
-      - id: output
-        run: echo "alb_dns=$(terraform output -raw alb_dns)" >> $GITHUB_OUTPUT
-        working-directory: terraform
-
-  ansible:
-    needs: terraform
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Configure AWS via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rewards-github-actions-role
-          aws-region: us-east-1
-      
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install Ansible + dependencies
-        run: |
-          pip install ansible boto3 botocore python-dotenv
-          ansible-galaxy collection install -r requirements.yml
-        working-directory: ansible
-      
-      - name: Wait for SSM agent registration
-        run: sleep 60
-      
-      - name: Run Ansible playbook via SSM
-        run: ansible-playbook playbook.yml -i inventory/aws_ec2.yml -v
-        working-directory: ansible
-      
-      - name: Verify /health endpoint
-        run: |
-          sleep 10  # Allow service to start
-          RESPONSE=$(curl -s http://${{ needs.terraform.outputs.alb_dns }}/health)
-          echo "Health response: $RESPONSE"
-          
-          if echo "$RESPONSE" | jq -e '.status == "ok"' > /dev/null; then
-            echo "Health check passed"
-          else
-            echo "Health check failed"
-            exit 1
-          fi
+  group: rewards-dev-deployment
+  cancel-in-progress: false
 ```
 
-**Key Features:**
-- Concurrency control (prevents overlapping deployments)
-- OIDC authentication
-- Separate backend key prefix (`dev/`)
-- APP_SECRET provisioning
-- Health endpoint verification
-- JSON validation with jq
+This prevents overlapping deployments and avoids Terraform state contention or partially converged Ansible runs.
 
 ---
 
@@ -1184,11 +874,11 @@ jobs:
 
 **Alarms:**
 
-1. **UnhealthyHostCount ≥ 1** (2 periods × 60s)
-2. **HTTPCode_Target_5XX_Count ≥ 5** (2 periods × 300s)
-3. **CPUUtilization ≥ 80%** (2 periods × 300s)
+1. **UnHealthyHostCount ≥ 1** (5 periods × 60s)
+2. **HTTPCode_Target_5XX_Count > 50** (2 periods × 300s)
+3. **CPUUtilization > 90%** (5 periods × 300s)
 
-**SNS Topic:** `rewards-dev-alerts` → email notifications
+**SNS Topic:** `rewards-dev-cloudwatch-alarms` → email notifications
 
 **Cost:** $0.30/month (3 alarms)
 
@@ -1201,24 +891,22 @@ jobs:
 
 ### Horizontal Scaling
 
-**Current:** Variable-driven instance count
+**Current:** Auto Scaling Group with variable-driven capacity
 ```hcl
-variable "instance_count" {
-  default = 2
-}
-
-resource "aws_instance" "app" {
-  count = var.instance_count
+resource "aws_autoscaling_group" "main" {
+  min_size         = var.min_size
+  max_size         = var.max_size
+  desired_capacity = var.desired_capacity
 }
 ```
 
 **Steps to scale:**
-1. Update `instance_count` in `environments/dev.tfvars`
+1. Update `min_size`, `desired_capacity`, or `max_size` in `environments/dev.tfvars`
 2. Run `terraform apply`
-3. Run Ansible (auto-discovers new instances via tags)
-4. Instances auto-register with target group
+3. New instances launch from the current launch template and register with the target group
+4. The deploy workflow reruns Ansible, which discovers instances dynamically by tag and converges the final service
 
-**Future:** Auto Scaling Group with target tracking
+**Future enhancement:** Add target-tracking or scheduled scaling policies
 
 ### Multi-AZ Expansion
 
@@ -1238,6 +926,8 @@ resource "aws_instance" "app" {
 **Rationale:**
 
 HashiCorp documentation explicitly states that CLI workspaces share the same backend and are **not suitable for isolation when deployments need different credentials and access controls**. For dev/prod separation:
+
+**Current repo note:** `terraform/backend.tf` is intentionally pinned to the assessment state bucket name in the assessment account. For reuse in another account, update the bucket name before the first `terraform init`.
 
 **1. Separate Backend Key Prefixes:**
 ```hcl
@@ -1297,7 +987,6 @@ terraform apply -var-file="environments/prod.tfvars"
 - [ ] Add HTTPS listener + ACM certificate
 - [ ] Configure Route53 DNS
 - [ ] Enable CloudWatch Logs (30-day retention)
-- [ ] Migrate to Auto Scaling Group
 - [ ] Add AWS WAF rules
 - [ ] Enable S3 state bucket MFA delete
 - [ ] Upgrade to KMS for secrets
@@ -1312,7 +1001,7 @@ terraform apply -var-file="environments/prod.tfvars"
 
 | Component | Qty | Unit | Monthly | Notes |
 |-----------|-----|------|---------|-------|
-| **EC2 (t4g.nano)** | 2 | $3 | **$6** | ARM-based |
+| **EC2 (t4g.nano)** | 1 | $3 | **$3** | Default `desired_capacity = 1` |
 | **ALB** | 1 | $16 | **$16** | Multi-AZ |
 | **NAT Gateway** | 1 | $32 | **$32** | Single AZ |
 | **NAT Data** | 10GB | $0.045/GB | **$0.45** | Low dev traffic |
@@ -1321,7 +1010,7 @@ terraform apply -var-file="environments/prod.tfvars"
 | **DynamoDB** | - | On-demand | **$0.10** | Low requests |
 | **CloudWatch Alarms** | 3 | $0.10 | **$0.30** | 3 alarms |
 | **Cross-AZ Transfer** | - | $0.01/GB | **$0.50** | ALB→EC2 |
-| **Data Transfer Out** | - | First 1GB free | **$1** | Dev traffic |
+| **Data Transfer Out** | - | First 1GB free | **$0** | First 1 GB free |
 
 **Total: $35-60/month**
 
@@ -1404,7 +1093,7 @@ terraform apply -var-file="environments/prod.tfvars"
 
 **Rationale:**
 - Matches rubric "excellent" criteria
-- Still supported in Terraform 1.5.x
+- Still supported in Terraform 1.7.5
 - Production-proven
 
 **Note:** DynamoDB locking is deprecated in favor of S3 native locking (`use_lockfile`). Migration path documented.
@@ -1425,20 +1114,20 @@ terraform apply -var-file="environments/prod.tfvars"
 ### Phase 1: Infrastructure (Week 1)
 1. Create S3 buckets:
    - `rewards-terraform-state-ACCOUNT_ID` (state)
-   - `rewards-ansible-ssm-dev` (Ansible transfers)
+   - `rewards-ansible-ssm-ACCOUNT_ID-dev` (Ansible transfers)
 2. Create DynamoDB table: `rewards-terraform-locks`
 3. Configure GitHub OIDC provider in AWS
 4. Create IAM roles (EC2, GitHub Actions)
 5. Deploy Terraform modules:
    - Network (VPC, subnets, NAT, security groups)
-   - Compute (2 EC2 instances)
+   - Compute (Auto Scaling Group with desired capacity 1, scaling to 3)
    - Load Balancer (ALB, target group)
    - Observability (CloudWatch alarms, SNS)
 
 ### Phase 2: Configuration Management (Week 1-2)
 1. Develop Ansible roles:
    - common (security baseline, packages)
-   - health-service (Python script, systemd unit, secret consumption)
+   - health_service (Python script, systemd unit, secret consumption)
 2. Create APP_SECRET in SSM Parameter Store
 3. Test SSM connection from local machine
 4. Verify `/health` endpoint returns correct JSON
@@ -1457,7 +1146,7 @@ terraform apply -var-file="environments/prod.tfvars"
 
 ### Phase 4: Validation & Documentation (Week 2)
 1. Verify all requirements met
-2. Test scaling (update instance_count)
+2. Test scaling (update `min_size`, `desired_capacity`, or `max_size`)
 3. Test idempotence (re-run ansible, no changes)
 4. Verify secret consumption in demo
 5. Document operational procedures
@@ -1470,7 +1159,7 @@ terraform apply -var-file="environments/prod.tfvars"
 | Service | Purpose | Monthly Cost |
 |---------|---------|--------------|
 | VPC | Network isolation | Free |
-| EC2 (t4g.nano × 2) | App hosting | $6 |
+| EC2 (t4g.nano × 1-3) | App hosting | $3-9 |
 | ALB | Public entrypoint | $16 |
 | NAT Gateway | Private egress | $32 |
 | S3 (state) | Terraform state | $0.50 |
@@ -1492,16 +1181,16 @@ This architecture is **designed to meet all assignment requirements**, with impl
 - Secret consumption (APP_SECRET fetched via instance role, never logged)
 - End-to-end deployment (CI/CD → infrastructure → configuration)
 - Service lifecycle (systemd unit, auto-start, health checks)
-- Horizontal scaling (variable-driven instance count)
+- Horizontal scaling (ASG-driven min/max/desired capacity)
 
 **Design Strengths:**
 - Hybrid AZ strategy (ALB multi-AZ, compute single-AZ) balances cost and AWS requirements
-- Least privilege IAM (specific ARNs, no wildcards, tag-based permissions)
+- Least privilege IAM (specific ARNs, no broad wildcards, instance-scoped tagging permissions)
 - SSM-only access (no SSH keys, no VPN, CloudTrail logged)
 - Explicit health endpoint (`/health` path)
 - Ansible SSM bucket (first-class dependency with security controls)
 - Secret consumption (APP_SECRET from SSM, never logged)
-- CI/CD quality gates (fmt, validate, tflint, ansible-lint)
+- CI/CD quality gates (fmt, init, validate, plan, ansible-lint, with advisory tflint and tfsec)
 - Concurrency control (prevents overlapping deployments)
 - Environment separation (backend key prefixes, not workspaces)
 

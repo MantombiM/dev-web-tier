@@ -9,7 +9,6 @@ import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
-# Configuration from environment
 PORT = {{ health_service_app_port }}
 SERVICE_NAME = "rewards"
 GIT_COMMIT = os.getenv('GIT_COMMIT', 'unknown')
@@ -30,7 +29,6 @@ class HealthHandler(BaseHTTPRequestHandler):
     
     def send_health_response(self):
         """Return health status JSON per SOLUTION.md spec"""
-        # Status depends on secret availability
         status = "ok" if APP_SECRET else "degraded"
         
         health_data = {
