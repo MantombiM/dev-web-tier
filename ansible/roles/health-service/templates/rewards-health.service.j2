@@ -13,11 +13,12 @@ User={{ app_user }}
 Group={{ app_group }}
 WorkingDirectory={{ app_dir }}
 
-# Fetch secrets before starting (runs as root via sudo)
-ExecStartPre={{ app_dir }}/fetch-secrets.sh
+# Fetch secrets before starting (runs as root, + prefix overrides User=)
+ExecStartPre=+{{ app_dir }}/fetch-secrets.sh
 
 # Load environment from file created by fetch-secrets script
-EnvironmentFile={{ app_dir }}/.env
+# - prefix makes it non-fatal if file doesn't exist on first start
+EnvironmentFile=-{{ app_dir }}/.env
 
 # Start Python health service
 ExecStart=/usr/bin/python3 {{ app_dir }}/health-service.py

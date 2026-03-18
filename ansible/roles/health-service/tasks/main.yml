@@ -6,7 +6,7 @@
   file:
     path: "{{ app_dir }}"
     state: directory
-    owner: root
+    owner: "{{ app_user }}"
     group: "{{ app_group }}"
     mode: '0755'
   tags: directory
