@@ -143,10 +143,20 @@ jobs:
             --query 'InstanceInformationList[*].[InstanceId,PingStatus]' \
             --output table
       
+      - name: Get Ansible SSM bucket name
+        id: bucket
+        run: |
+          BUCKET_NAME=$(aws s3api list-buckets \
+            --query "Buckets[?starts_with(Name, 'rewards-ansible-ssm-')].Name | [0]" \
+            --output text \
+            --region us-east-1)
+          echo "Resolved bucket: ${BUCKET_NAME}"
+          echo "name=${BUCKET_NAME}" >> $GITHUB_OUTPUT
+
       - name: Run Ansible playbook via SSM
         env:
           GITHUB_SHA: ${{ github.sha }}
-          ANSIBLE_SSM_BUCKET: ${{ needs.terraform-apply.outputs.ansible_bucket }}
+          ANSIBLE_SSM_BUCKET: ${{ steps.bucket.outputs.name }}
         run: |
           ansible-playbook playbook.yml \
             -i inventory/aws_ec2.yml \
