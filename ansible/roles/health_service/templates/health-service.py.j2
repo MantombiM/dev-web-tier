@@ -10,7 +10,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
 # Configuration from environment
-PORT = {{ app_port }}
+PORT = {{ health_service_app_port }}
 SERVICE_NAME = "rewards"
 GIT_COMMIT = os.getenv('GIT_COMMIT', 'unknown')
 AWS_REGION = os.getenv('AWS_REGION', 'unknown')

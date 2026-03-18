@@ -3,14 +3,14 @@
 # Security baseline per SOLUTION.md requirements
 
 - name: Update all system packages
-  yum:
+  ansible.builtin.dnf:
     name: '*'
-    state: latest
-    update_cache: yes
+    state: latest # noqa: package-latest
+    update_cache: true
   tags: packages
 
 - name: Install required system packages
-  yum:
+  ansible.builtin.dnf:
     name:
       - chrony
       - logrotate
@@ -20,32 +20,32 @@
   tags: packages
 
 - name: Enable and start chrony for time synchronization
-  systemd:
+  ansible.builtin.systemd_service:
     name: chronyd
-    enabled: yes
+    enabled: true
     state: started
   tags: time
 
 - name: Disable SSH password authentication
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/ssh/sshd_config
     regexp: '^#?PasswordAuthentication'
     line: 'PasswordAuthentication no'
     validate: '/usr/sbin/sshd -t -f %s'
-  notify: restart sshd
+  notify: Restart sshd
   tags: ssh
 
 - name: Disable SSH root login
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/ssh/sshd_config
     regexp: '^#?PermitRootLogin'
     line: 'PermitRootLogin no'
     validate: '/usr/sbin/sshd -t -f %s'
-  notify: restart sshd
+  notify: Restart sshd
   tags: ssh
 
 - name: Configure logrotate for application logs
-  template:
+  ansible.builtin.template:
     src: logrotate.conf.j2
     dest: /etc/logrotate.d/rewards
     owner: root

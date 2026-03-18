@@ -1,0 +1,61 @@
+---
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ health_service_app_dir }}"
+    state: directory
+    owner: "{{ health_service_app_user }}"
+    group: "{{ health_service_app_group }}"
+    mode: '0755'
+  tags: directory
+
+- name: Deploy secret fetch script
+  ansible.builtin.template:
+    src: fetch-secrets.sh.j2
+    dest: "{{ health_service_app_dir }}/fetch-secrets.sh"
+    owner: root
+    group: "{{ health_service_app_group }}"
+    mode: '0750'
+  notify: Restart rewards-health
+  tags: secrets
+
+- name: Deploy health service application
+  ansible.builtin.template:
+    src: health-service.py.j2
+    dest: "{{ health_service_app_dir }}/health-service.py"
+    owner: root
+    group: "{{ health_service_app_group }}"
+    mode: '0644'
+  notify: Restart rewards-health
+  tags: application
+
+- name: Deploy systemd service unit
+  ansible.builtin.template:
+    src: rewards-health.service.j2
+    dest: /etc/systemd/system/{{ health_service_service_name }}.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - Reload systemd
+    - Restart rewards-health
+  tags: systemd
+
+- name: Flush handlers before service start
+  ansible.builtin.meta: flush_handlers
+  tags: service
+
+- name: Enable and start rewards health service
+  ansible.builtin.systemd_service:
+    name: "{{ health_service_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: service
+
+- name: Verify service is running
+  ansible.builtin.systemd_service:
+    name: "{{ health_service_service_name }}"
+    state: started
+  register: service_status
+  failed_when: service_status.status.ActiveState != 'active'
+  tags: verify

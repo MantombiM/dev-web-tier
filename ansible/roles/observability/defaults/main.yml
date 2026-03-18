@@ -1,6 +1,5 @@
 ---
-# Observability configuration
-log_dir: /var/log/rewards
-service_name: rewards-health
-app_user: ec2-user
-app_group: ec2-user
+observability_log_dir: /var/log/rewards
+observability_service_name: rewards-health
+observability_app_user: ec2-user
+observability_app_group: ec2-user

@@ -1,19 +1,16 @@
 ---
-# Observability configuration
-# CloudWatch alarms managed by Terraform
-
 - name: Create application log directory
-  file:
-    path: "{{ log_dir }}"
+  ansible.builtin.file:
+    path: "{{ observability_log_dir }}"
     state: directory
-    owner: "{{ app_user }}"
-    group: "{{ app_group }}"
+    owner: "{{ observability_app_user }}"
+    group: "{{ observability_app_group }}"
     mode: '0755'
   tags: logging
 
 - name: Create systemd override directory
-  file:
-    path: "/etc/systemd/system/{{ service_name }}.service.d"
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ observability_service_name }}.service.d"
     state: directory
     owner: root
     group: root
@@ -21,14 +18,14 @@
   tags: logging
 
 - name: Configure service log output
-  copy:
+  ansible.builtin.copy:
     content: |
       [Service]
-      StandardOutput=append:{{ log_dir }}/health-service.log
-      StandardError=append:{{ log_dir }}/health-service.log
-    dest: "/etc/systemd/system/{{ service_name }}.service.d/logging.conf"
+      StandardOutput=append:{{ observability_log_dir }}/health-service.log
+      StandardError=append:{{ observability_log_dir }}/health-service.log
+    dest: "/etc/systemd/system/{{ observability_service_name }}.service.d/logging.conf"
     owner: root
     group: root
     mode: '0644'
-  notify: restart rewards-health
+  notify: Restart rewards-health
   tags: logging

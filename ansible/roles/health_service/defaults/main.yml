@@ -1,0 +1,6 @@
+---
+health_service_app_dir: /opt/rewards
+health_service_app_port: 8080
+health_service_service_name: rewards-health
+health_service_app_user: ec2-user
+health_service_app_group: ec2-user
