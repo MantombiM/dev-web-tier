@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 resource "aws_iam_role" "ec2_instance_role" {
   name = "${var.environment}-${var.service_name}-ec2-role"
 
@@ -52,7 +54,7 @@ resource "aws_iam_role_policy" "ec2_custom_policy" {
         Action = [
           "s3:GetObject"
         ]
-        Resource = "arn:aws:s3:::rewards-ansible-ssm-dev/*"
+        Resource = "arn:aws:s3:::rewards-ansible-ssm-${data.aws_caller_identity.current.account_id}-${var.environment}/*"
       },
       {
         Effect = "Allow"

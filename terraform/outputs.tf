@@ -32,3 +32,8 @@ output "instance_role_arn" {
   description = "ARN of the IAM role for EC2 instances"
   value       = module.iam.instance_role_arn
 }
+
+output "ansible_ssm_bucket_name" {
+  description = "Name of the S3 bucket for Ansible SSM file transfers"
+  value       = aws_s3_bucket.ansible_ssm.id
+}
