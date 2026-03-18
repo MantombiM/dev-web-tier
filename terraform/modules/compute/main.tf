@@ -46,22 +46,22 @@ resource "aws_launch_template" "main" {
 
   tag_specifications {
     resource_type = "instance"
-    tags = {
+    tags = merge(var.common_tags, {
       Name        = "${var.environment}-${var.service_name}-instance"
       environment = var.environment
       service     = var.service_name
       managed_by  = "terraform"
-    }
+    })
   }
 
   tag_specifications {
     resource_type = "volume"
-    tags = {
+    tags = merge(var.common_tags, {
       Name        = "${var.environment}-${var.service_name}-volume"
       environment = var.environment
       service     = var.service_name
       managed_by  = "terraform"
-    }
+    })
   }
 
   tags = {
@@ -115,6 +115,18 @@ resource "aws_autoscaling_group" "main" {
   tag {
     key                 = "AnsibleManaged"
     value               = "true"
+    propagate_at_launch = true
+  }
+
+  tag {
+    key                 = "owner"
+    value               = lookup(var.common_tags, "owner", "candidate")
+    propagate_at_launch = true
+  }
+
+  tag {
+    key                 = "cost_center"
+    value               = lookup(var.common_tags, "cost_center", "payments")
     propagate_at_launch = true
   }
 }

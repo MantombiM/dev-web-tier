@@ -39,7 +39,6 @@ jobs:
         id: fmt
         run: terraform fmt -check -recursive
         working-directory: terraform
-        continue-on-error: true
       
       - name: Terraform Init
         id: init
@@ -83,20 +82,33 @@ jobs:
         if: github.event_name == 'pull_request'
         with:
           script: |
+            const planOutput = `${{ steps.plan.outputs.stdout }}`;
+            const truncated = planOutput.length > 60000
+              ? planOutput.substring(0, 60000) + '\n\n... (truncated)'
+              : planOutput;
+
             const output = `## Terraform Quality Gates Results
-            
+
             | Gate | Status |
             |------|--------|
-            | 🖌 Terraform Format | \`${{ steps.fmt.outcome }}\` |
-            | ⚙️ Terraform Init | \`${{ steps.init.outcome }}\` |
-            | 🤖 Terraform Validate | \`${{ steps.validate.outcome }}\` |
-            | 🔍 TFLint | \`${{ steps.tflint.outcome }}\` |
-            | 📖 Terraform Plan | \`${{ steps.plan.outcome }}\` |
-            
+            | Terraform Format | \`${{ steps.fmt.outcome }}\` |
+            | Terraform Init | \`${{ steps.init.outcome }}\` |
+            | Terraform Validate | \`${{ steps.validate.outcome }}\` |
+            | TFLint | \`${{ steps.tflint.outcome }}\` |
+            | Terraform Plan | \`${{ steps.plan.outcome }}\` |
+
+            <details><summary>Terraform Plan Output</summary>
+
+            \`\`\`
+            ${truncated}
+            \`\`\`
+
+            </details>
+
             **Pushed by:** @${{ github.actor }}
             **Run ID:** ${{ github.run_id }}
             `;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -105,7 +117,7 @@ jobs:
             });
       
       - name: Validate critical checks passed
-        if: steps.validate.outcome != 'success' || steps.init.outcome != 'success'
+        if: steps.fmt.outcome != 'success' || steps.validate.outcome != 'success' || steps.init.outcome != 'success' || steps.plan.outcome != 'success'
         run: |
           echo "Critical validation checks failed"
           exit 1

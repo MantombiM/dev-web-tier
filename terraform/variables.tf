@@ -85,7 +85,7 @@ variable "common_tags" {
   default = {
     environment = "dev"
     service     = "rewards"
-    owner       = "Mantombi Manqele"
+    owner       = "candidate"
     cost_center = "payments"
     managed_by  = "terraform"
   }
