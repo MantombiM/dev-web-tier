@@ -17,71 +17,65 @@ Production-ready AWS infrastructure for the "rewards" web service with comprehen
 
 ## Architecture
 
-```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                          AWS Cloud (us-east-1)                              │
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────┐   │
-│  │ VPC: 10.0.0.0/16                                                    │   │
-│  │                                                                      │   │
-│  │  ┌──────────────────┬──────────────────┐                           │   │
-│  │  │ AZ: us-east-1a   │ AZ: us-east-1b   │                           │   │
-│  │  │                  │                   │                           │   │
-│  │  │ PUBLIC SUBNETS                       │                           │   │
-│  │  │ ┌──────────────┐ │ ┌──────────────┐ │                           │   │
-│  │  │ │     ALB      │◄┼─┼►│     ALB      │ │  Internet ──HTTP:80──►  │   │
-│  │  │ │   Port 80    │ │ │ │   Port 80    │ │      (Multi-AZ)         │   │
-│  │  │ └──────┬───────┘ │ │ └──────────────┘ │                           │   │
-│  │  │        │         │ │                   │                           │   │
-│  │  │ ┌──────▼───────┐ │ │                   │                           │   │
-│  │  │ │ NAT Gateway  │ │ │   (No NAT)        │                           │   │
-│  │  │ │   Egress     │ │ │                   │                           │   │
-│  │  │ └──────────────┘ │ │                   │                           │   │
-│  │  └──────┬───────────┴──────────────────────┘                           │   │
-│  │         │ :8080                                                         │   │
-│  │  ┌──────▼─────────────────────────┐                                   │   │
-│  │  │ PRIVATE SUBNET (us-east-1a)    │                                   │   │
-│  │  │                                 │                                   │   │
-│  │  │  ┌──────────────────────────┐  │                                   │   │
-│  │  │  │ Auto Scaling Group       │  │                                   │   │
-│  │  │  │ Min: 1, Max: 3, Desired: 2│ │                                   │   │
-│  │  │  └──────────┬───────────────┘  │                                   │   │
-│  │  │             │                   │                                   │   │
-│  │  │  ┌──────────▼──────────┐       │                                   │   │
-│  │  │  │ EC2: t4g.nano ARM   │       │                                   │   │
-│  │  │  │ Health Service:8080 │       │                                   │   │
-│  │  │  │ Instance 1          │       │                                   │   │
-│  │  │  └─────────────────────┘       │                                   │   │
-│  │  │  ┌─────────────────────┐       │                                   │   │
-│  │  │  │ EC2: t4g.nano ARM   │       │                                   │   │
-│  │  │  │ Health Service:8080 │       │                                   │   │
-│  │  │  │ Instance 2          │       │                                   │   │
-│  │  │  └─────────────────────┘       │                                   │   │
-│  │  └─────────────────────────────────┘                                   │   │
-│  └──────────────────────────────────────────────────────────────────────┘   │
-│                                                                              │
-│  AWS Managed Services:                                                       │
-│  ┌─────────────────────────────────────────────────────────────────┐       │
-│  │ • CloudWatch Alarms → SNS (Email: mimimanqele13@gmail.com)      │       │
-│  │   - ALB 5xx Errors (>10 in 5 min)                               │       │
-│  │   - Unhealthy Targets (≥1 for 2 min)                            │       │
-│  │   - High CPU (>80% for 10 min)                                  │       │
-│  │                                                                   │       │
-│  │ • SSM Parameter Store: /rewards/dev/secrets/APP_SECRET          │       │
-│  │ • S3: Terraform State + DynamoDB: State Locks                   │       │
-│  │ • Systems Manager: Session Manager (No SSH)                     │       │
-│  └─────────────────────────────────────────────────────────────────┘       │
-└────────────────────────────────────────────────────────────────────────────┘
+Current development defaults use `desired_capacity = 1` and scale out to 3 instances through the Auto Scaling Group. The diagram below shows the scaled-out topology once additional capacity is required.
 
-┌────────────────────────────────────────────────────────────────────────────┐
-│                          CI/CD Pipeline                                      │
-│                                                                              │
-│  GitHub Actions (OIDC) ──► Terraform Apply ──► Provision Infrastructure   │
-│                     └──────► Ansible via SSM ──► Configure Instances        │
-│                                                                              │
-│  Quality Gates: fmt, validate, plan, ansible-lint                          │
-│  Concurrency Control: One deployment at a time                             │
-└────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    internet[Internet]
+
+    subgraph aws[AWS Cloud - us-east-1]
+        subgraph vpc[VPC 10.0.0.0/16]
+            subgraph pubA[Public subnet - us-east-1a]
+                albA[ALB listener :80]
+                nat[NAT Gateway]
+            end
+
+            subgraph pubB[Public subnet - us-east-1b]
+                albB[ALB listener :80]
+            end
+
+            subgraph privA[Private subnet - us-east-1a]
+                asg[Auto Scaling Group\nmin 1 / desired 1 / max 3]
+                ec21[EC2 t4g.nano\nHealth service :8080\nInstance 1]
+                ec22[EC2 t4g.nano\nHealth service :8080\nInstance 2]
+            end
+
+            subgraph managed[AWS managed services]
+                ssm[SSM Parameter Store\n/rewards/dev/secrets/APP_SECRET]
+                state[S3 + DynamoDB\nTerraform state + locking]
+                cw[CloudWatch alarms]
+                sns[SNS email notifications]
+                session[Systems Manager\nSession Manager]
+            end
+        end
+    end
+
+    internet --> albA
+    internet --> albB
+    albA --> asg
+    albB --> asg
+    asg --> ec21
+    asg --> ec22
+    ec21 --> nat
+    ec22 --> nat
+    cw --> sns
+    ec21 -. runtime secret fetch .-> ssm
+    ec22 -. runtime secret fetch .-> ssm
+    session -. access without SSH .-> ec21
+    session -. access without SSH .-> ec22
+```
+
+```mermaid
+flowchart LR
+    pr[Pull request or push] --> gha[GitHub Actions via OIDC]
+    gha --> prchecks[PR validation\nfmt / init / validate / plan / ansible-lint]
+    gha --> advisory[Advisory scans\ntflint / tfsec]
+    gha --> tfapply[Terraform apply]
+    tfapply --> infra[Provision infrastructure]
+    infra --> ansible[Ansible via SSM]
+    ansible --> instances[Configure instances]
+    instances --> health[Verify /health endpoint]
+    gha --> concurrency[Single in-flight deployment\ncancel-in-progress: false]
 ```
 
 ## Key Design Decisions
@@ -131,6 +125,11 @@ Production-ready AWS infrastructure for the "rewards" web service with comprehen
 - EC2 instances fetch secrets at runtime using instance role
 - Secrets never appear in Terraform state, CI/CD logs, or source control
 
+**Tagging & Inventory Convergence**:
+- Provider-level `default_tags` enforce consistent Terraform tagging
+- Launch template and ASG propagate `environment`, `service`, `owner`, `cost_center`, and `AnsibleManaged`
+- Ansible dynamic inventory filters by `environment=dev` and `service=rewards`, so replacement instances are discovered automatically
+
 ### Observability Choice
 
 **CloudWatch Alarms Selected Over Centralized Logs**:
@@ -145,9 +144,9 @@ Production-ready AWS infrastructure for the "rewards" web service with comprehen
 
 | Alarm | Threshold | Evaluation Period | Action |
 |-------|-----------|-------------------|--------|
-| `rewards-dev-alb-5xx-errors` | >10 errors | 5 minutes (1 datapoint) | Email alert |
-| `rewards-dev-unhealthy-targets` | ≥1 unhealthy target | 2 minutes (2 datapoints) | Email alert |
-| `rewards-dev-high-cpu` | >80% average | 10 minutes (2 datapoints) | Email alert |
+| `rewards-dev-alb-5xx-errors` | >50 errors | 10 minutes (2 datapoints) | Email alert |
+| `rewards-dev-unhealthy-targets` | ≥1 unhealthy target | 5 minutes (5 datapoints) | Email alert |
+| `rewards-dev-high-cpu` | >90% average | 25 minutes (5 datapoints) | Email alert |
 
 **Production Enhancement Path**: Add CloudWatch Logs, X-Ray tracing, custom metrics
 
@@ -209,6 +208,7 @@ resource "aws_autoscaling_group" "main" {
 | Python | 3.9+ | Ansible and application runtime |
 | Git | 2.x | Version control |
 | jq | 1.6+ | JSON parsing in scripts |
+| Session Manager Plugin | latest | Local Ansible over AWS Systems Manager |
 
 ### Required AWS Resources
 
@@ -238,19 +238,19 @@ The deployment requires permissions for:
 
 ## Quick Start
 
-Deploy the complete infrastructure and application in 6 steps:
+Deploy the complete infrastructure and application in 7 steps:
+
+Before the first `terraform init`, update `terraform/backend.tf` if you are deploying outside the assessment AWS account. It is currently pinned to the assessment state bucket name for reproducibility.
+
+Also review `terraform/environments/dev.tfvars` and set `alarm_email` to a valid inbox before the first apply.
 
 ```bash
-# 1. Clone repository and navigate to project
 git clone <repository-url>
 cd dev-web-tier
 
-# 2. Set environment variables
 export AWS_ACCOUNT_ID="123456789012"
 export AWS_REGION="us-east-1"
 
-# 3. Create backend resources (one-time setup)
-# S3 bucket for Terraform state
 aws s3api create-bucket \
   --bucket "rewards-terraform-state-${AWS_ACCOUNT_ID}" \
   --region ${AWS_REGION}
@@ -264,7 +264,6 @@ aws s3api put-bucket-encryption \
   --server-side-encryption-configuration \
   '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"},"BucketKeyEnabled":true}]}'
 
-# DynamoDB table for state locking
 aws dynamodb create-table \
   --table-name rewards-terraform-locks \
   --attribute-definitions AttributeName=LockID,AttributeType=S \
@@ -272,12 +271,10 @@ aws dynamodb create-table \
   --billing-mode PAY_PER_REQUEST \
   --region ${AWS_REGION}
 
-# 4. Initialize and deploy infrastructure
 cd terraform
 terraform init -backend-config="key=dev/terraform.tfstate"
 terraform apply -var-file=environments/dev.tfvars -auto-approve
 
-# 5. Create APP_SECRET (if not exists)
 if ! aws ssm get-parameter --name "/rewards/dev/secrets/APP_SECRET" --region ${AWS_REGION} 2>/dev/null; then
   echo "Creating APP_SECRET parameter..."
   aws ssm put-parameter \
@@ -291,17 +288,26 @@ else
   echo "Secret already exists. Skipping creation."
 fi
 
-# 6. Configure instances with Ansible (wait for SSM registration)
 cd ../ansible
 sleep 60  # Allow SSM agent to register
-ansible-playbook -i inventory/aws_ec2.yml playbook.yml
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+ansible-galaxy collection install amazon.aws community.general
 
-# 7. Get ALB DNS and verify health endpoint
+cd ../terraform
+export ANSIBLE_SSM_BUCKET="$(terraform output -raw ansible_ssm_bucket_name)"
+
+cd ../ansible
+ansible-playbook playbook.yml \
+  -i inventory/aws_ec2.yml \
+  -c amazon.aws.aws_ssm \
+  -e "ansible_aws_ssm_bucket_name=${ANSIBLE_SSM_BUCKET}"
+
 cd ../terraform
 ALB_DNS=$(terraform output -raw alb_dns_name)
 echo "Health endpoint: http://${ALB_DNS}/health"
 
-# Wait for service startup and test
 sleep 15
 curl http://${ALB_DNS}/health | jq
 ```
@@ -339,6 +345,11 @@ curl http://${ALB_DNS}/health | jq
 | `commit` | string | Git SHA for deployment traceability |
 | `region` | string | AWS region for multi-region awareness |
 
+**Bootstrap note**:
+- New ASG instances start with a minimal bootstrap responder from EC2 user data so they can pass ALB health checks immediately.
+- Until the Ansible `health_service` role converges, the endpoint can temporarily return `commit: "bootstrap"`.
+- The deploy workflow reruns Ansible after Terraform apply, which replaces the bootstrap service with the final secret-backed service.
+
 **Health Check Configuration**:
 - **Protocol**: HTTP
 - **Port**: 8080
@@ -358,12 +369,19 @@ curl http://${ALB_DNS}/health | jq
 Executes on pull requests to `main` branch:
 
 ```yaml
-Quality Gates:
-  - terraform fmt -check        # Code formatting
-  - terraform validate          # Syntax validation  
-  - terraform plan              # Infrastructure preview
-  - ansible-lint                # Playbook quality check
+Blocking checks:
+  - terraform fmt -check
+  - terraform init
+  - terraform validate
+  - terraform plan
+  - ansible-lint
+
+Advisory checks:
+  - tflint
+  - tfsec
 ```
+
+The workflow also posts the terraform plan output back to the pull request to keep reviews readable without opening workflow logs.
 
 **2. Deployment Pipeline** ([`.github/workflows/terraform-apply.yml`](.github/workflows/terraform-apply.yml))
 
@@ -442,12 +460,12 @@ See [`docs/SOLUTION.md`](docs/SOLUTION.md) for complete IAM policy with least pr
 
 | Alarm Name | Metric | Threshold | Evaluation | Action |
 |------------|--------|-----------|------------|--------|
-| `rewards-dev-alb-5xx-errors` | HTTPCode_Target_5XX_Count | >10 errors | 1 period × 5 min | SNS email |
-| `rewards-dev-unhealthy-targets` | UnHealthyHostCount | ≥1 target | 2 periods × 1 min | SNS email |
-| `rewards-dev-high-cpu` | CPUUtilization | >80% average | 2 periods × 5 min | SNS email |
+| `rewards-dev-alb-5xx-errors` | HTTPCode_Target_5XX_Count | >50 errors | 2 periods × 5 min | SNS email |
+| `rewards-dev-unhealthy-targets` | UnHealthyHostCount | ≥1 target | 5 periods × 1 min | SNS email |
+| `rewards-dev-high-cpu` | CPUUtilization | >90% average | 5 periods × 5 min | SNS email |
 
 **SNS Topic**: `rewards-dev-cloudwatch-alarms`  
-**Notification Email**: mimimanqele13@gmail.com
+**Notification Email**: configured via `terraform/environments/dev.tfvars`
 
 **Email Confirmation Required**:
 After first deployment, check email for SNS subscription confirmation and click "Confirm subscription" link.
@@ -469,21 +487,21 @@ aws cloudwatch describe-alarm-history \
 
 ## Cost Breakdown
 
-### Monthly Cost Estimate (us-east-1)
+### Monthly Cost Estimate (us-east-1, default `desired_capacity = 1`)
 
 | Resource | Configuration | Unit Price | Quantity | Monthly Cost |
 |----------|--------------|------------|----------|--------------|
-| **EC2 Instances** | t4g.nano ARM | $0.0042/hour | 2 instances | $6.05 |
+| **EC2 Instances** | t4g.nano ARM | $0.0042/hour | 1 instance | $3.03 |
 | **Application Load Balancer** | - | $0.0225/hour | 1 ALB | $16.20 |
 | **NAT Gateway** | Single AZ | $0.045/hour | 1 gateway | $32.40 |
 | **NAT Data Processing** | - | $0.045/GB | 10 GB/month | $0.45 |
-| **EBS Storage** | gp3 8GB | $0.08/GB-month | 2 volumes | $1.28 |
+| **EBS Storage** | gp3 8GB | $0.08/GB-month | 1 volume | $0.64 |
 | **CloudWatch Alarms** | Standard | $0.10/alarm | 3 alarms | $0.30 |
-| **S3 Storage** | Standard | $0.023/GB | 1 GB | $0.50 |
+| **S3 Storage** | State + Ansible SSM bucket | $0.023/GB | ~1 GB | $0.50 |
 | **DynamoDB** | On-demand | - | Low requests | $0.10 |
 | **Cross-AZ Transfer** | ALB→EC2 | $0.01/GB | 5 GB/month | $0.05 |
 | **Data Transfer Out** | First 1GB free | $0.09/GB | 1 GB | $0.00 |
-| | | | **Total** | **~$57.33/month** |
+| | | | **Total** | **~$53.67/month** |
 
 ### Cost Optimization Strategies
 
@@ -807,6 +825,7 @@ dev-web-tier/
 │
 ├── ansible/                     # Configuration Management
 │   ├── ansible.cfg             # Ansible configuration
+│   ├── requirements.txt        # Python dependencies for local/CI runs
 │   ├── playbook.yml            # Main playbook
 │   │
 │   ├── inventory/              # Dynamic inventory
@@ -814,7 +833,8 @@ dev-web-tier/
 │   │
 │   └── roles/                  # Ansible roles
 │       ├── common/            # Base configuration (packages, security)
-│       └── health_service/    # Application deployment
+│       ├── health_service/    # Application deployment
+│       └── observability/     # Log rotation and related operational config
 │
 ├── .github/workflows/           # CI/CD Pipelines
 │   ├── terraform-pr.yml        # PR validation (plan, lint)

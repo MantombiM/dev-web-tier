@@ -10,25 +10,20 @@ User={{ health_service_app_user }}
 Group={{ health_service_app_group }}
 WorkingDirectory={{ health_service_app_dir }}
 
-# Fetch secrets before starting (runs as root, + prefix overrides User=)
+# Refresh secrets as root before starting the unprivileged service.
 ExecStartPre=+{{ health_service_app_dir }}/fetch-secrets.sh
 
-# Load environment from file created by fetch-secrets script
-# - prefix makes it non-fatal if file doesn't exist on first start
+# Optional until the first successful secret fetch.
 EnvironmentFile=-{{ health_service_app_dir }}/.env
 
-# Start Python health service
 ExecStart=/usr/bin/python3 {{ health_service_app_dir }}/health-service.py
 
-# Restart policy - critical for production
 Restart=always
 RestartSec=10
 
-# Security hardening
 NoNewPrivileges=true
 PrivateTmp=true
 
-# Logging to journald
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier={{ health_service_service_name }}

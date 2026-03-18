@@ -7,7 +7,7 @@ instance_type      = "t4g.nano"
 min_size           = 1
 max_size           = 3
 desired_capacity   = 1
-alarm_email        = "mimimanqele13@gmail.com"
+alarm_email        = "candidate@example.com"
 
 common_tags = {
   environment = "dev"
